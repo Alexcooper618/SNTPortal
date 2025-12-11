@@ -1,0 +1,1 @@
+DATABASE_URL="postgresql://snt_user:snt_password@localhost:5432/snt_db?schema=public"
