@@ -22,6 +22,20 @@ export const registerSnt = async (req: Request, res: Response) => {
     });
 
     const chairman = snt.users[0];
+
+    const token = jwt.sign(
+      { userId: chairman.id, role: chairman.role, sntId: snt.id },
+      process.env.JWT_SECRET!,
+      { expiresIn: "7d" }
+    );
+
+    res.json({ snt, token });
+  } catch (err: any) {
+    console.error(err);
+    res.status(500).json({ error: "Unable to register SNT" });
+  }
+};
+
 export const login = async (req: Request, res: Response) => {
   try {
     const { phone } = req.body;
@@ -48,18 +62,5 @@ export const login = async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Login failed" });
-  }
-};
-
-    const token = jwt.sign(
-      { userId: chairman.id, role: chairman.role, sntId: snt.id },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
-
-    res.json({ snt, token });
-  } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ error: "Unable to register SNT" });
   }
 };

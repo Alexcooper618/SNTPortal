@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { prisma } from "./db";
@@ -13,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // Health check
-app.get("/health", (req, res) => {
+app.get("/health", (req: Request, res: Response) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
@@ -21,7 +21,7 @@ app.get("/health", (req, res) => {
 app.use("/auth", authRoutes);
 
 // Temporary test endpoint for creating SNT manually (optional)
-app.post("/snt", async (req, res) => {
+app.post("/snt", async (req: Request, res: Response) => {
   try {
     const { name, location } = req.body;
 
