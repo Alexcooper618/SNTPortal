@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Форум</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Форум и чат</h1>
+          <div class="note">Обсуждения жителей и вопросы председателю</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Создать тему</button>
+        <button class="button secondary">Задать вопрос</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link active" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Админ-панель</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Форум СНТ</h2>
+          <span class="tag">Онлайн 24/7</span>
+        </div>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Категории</h3>
+            <ul class="list">
+              <li class="list-item">Вопросы председателю</li>
+              <li class="list-item">Обсуждение благоустройства</li>
+              <li class="list-item">Предложения и идеи</li>
+              <li class="list-item">Чат жителей</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Последние темы</h3>
+            <ul class="list">
+              <li class="list-item">Когда будет ремонт дороги у въезда?</li>
+              <li class="list-item">Сбор заявок на вывоз мусора</li>
+              <li class="list-item">Ищу подрядчика для установки ворот</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h3>Тема: Ремонт дороги у въезда</h3>
+            <span class="badge">12 ответов</span>
+          </div>
+          <ul class="list">
+            <li class="list-item"><strong>Председатель:</strong> Работы запланированы на 18 октября, подрядчик утвержден.</li>
+            <li class="list-item"><strong>Житель участка 14:</strong> Просьба добавить освещение возле КПП.</li>
+            <li class="list-item"><strong>Житель участка 7:</strong> Готов помочь с волонтерской уборкой.</li>
+          </ul>
+          <button class="button secondary">Ответить</button>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Форум модерируется председателем и активом жителей.</footer>
+  </div>
+</body>
+</html>

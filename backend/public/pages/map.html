@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Карта</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Карта СНТ</h1>
+          <div class="note">Участки, инфраструктура и сервисные точки</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button secondary">Поиск участка</button>
+        <button class="button">Сообщить о проблеме</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link active" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Админ-панель</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Карта СНТ</h2>
+          <span class="tag">Слой: инфраструктура</span>
+        </div>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Список объектов</h3>
+            <ul class="list">
+              <li class="list-item">Улица Березовая · 32 участка</li>
+              <li class="list-item">Скважина №2 · Техническая зона</li>
+              <li class="list-item">Пункт охраны · Контакты 24/7</li>
+              <li class="list-item">Детская площадка · Запланирован ремонт</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Карточка объекта</h3>
+            <p><strong>Скважина №2</strong></p>
+            <p>Состояние: плановый осмотр 15 октября.</p>
+            <p>Ответственный: инженер службы водоснабжения.</p>
+            <button class="button secondary">Сообщить о неисправности</button>
+          </div>
+        </section>
+
+        <section class="card map-placeholder">
+          Карта будет интегрирована на следующем этапе (геоданные от правления).
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Карта обновляется по мере внесения новых объектов.</footer>
+  </div>
+</body>
+</html>

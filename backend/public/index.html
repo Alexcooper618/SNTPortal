@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Главная</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Информационный портал СНТ «Рассвет»</h1>
+          <div class="note">Единая точка доступа для жителей и правления</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Оплатить взнос</button>
+        <button class="button secondary">Сообщить проблему</button>
+        <button class="button secondary">Задать вопрос</button>
+        <span class="badge">3 уведомления</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link active" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Админ-панель</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Главная</h2>
+          <span class="tag">Сегодня: 12 октября</span>
+        </div>
+
+        <section class="grid three">
+          <div class="card">
+            <h3>Статус платежей</h3>
+            <p>Текущий баланс: <strong>-3 200 ₽</strong></p>
+            <p>Следующий взнос до 20 октября.</p>
+            <button class="button">Оплатить сейчас</button>
+          </div>
+          <div class="card">
+            <h3>Важные уведомления</h3>
+            <ul class="list">
+              <li class="list-item">Отключение воды 14 октября с 10:00 до 16:00.</li>
+              <li class="list-item">Сбор предложений по ремонту дорог до 18 октября.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Быстрые действия</h3>
+            <ul class="list">
+              <li class="list-item">Подать заявку на ремонт</li>
+              <li class="list-item">Отправить обращение председателю</li>
+              <li class="list-item">Записаться на собрание</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="grid two">
+          <div class="card">
+            <div class="section-header">
+              <h3>Последние новости</h3>
+              <a class="tag" href="/pages/news.html">Все новости</a>
+            </div>
+            <ul class="list">
+              <li class="list-item">Проведены работы по освещению центральной аллеи.</li>
+              <li class="list-item">Назначено общее собрание на 22 октября.</li>
+              <li class="list-item">Запущена система онлайн-оплаты взносов.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <div class="section-header">
+              <h3>Плановые работы</h3>
+              <span class="badge warning">2 в процессе</span>
+            </div>
+            <ul class="list">
+              <li class="list-item">Покраска ограждений въездной группы — до 15 октября.</li>
+              <li class="list-item">Ремонт детской площадки — старт 18 октября.</li>
+            </ul>
+          </div>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">СНТ «Рассвет» · Поддержка: help@snt-portal.ru</footer>
+  </div>
+</body>
+</html>
