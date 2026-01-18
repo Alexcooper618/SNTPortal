@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Новости</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Новости и объявления</h1>
+          <div class="note">Официальные публикации и события СНТ</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button secondary">Подписаться на новости</button>
+        <span class="badge">6 новых</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link active" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Админ-панель</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Новости и объявления</h2>
+          <span class="tag">Фильтр: все</span>
+        </div>
+
+        <section class="grid three">
+          <div class="card">
+            <h3>Фильтры</h3>
+            <ul class="list">
+              <li class="list-item">Собрания</li>
+              <li class="list-item">Работы и ремонты</li>
+              <li class="list-item">Важно</li>
+              <li class="list-item">Объявления жителей</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Поиск по новостям</h3>
+            <p>Введите ключевые слова, номер участка или дату.</p>
+            <button class="button secondary">Открыть поиск</button>
+          </div>
+          <div class="card">
+            <h3>Подписки</h3>
+            <p>Управляйте уведомлениями о новых публикациях.</p>
+            <button class="button">Настроить</button>
+          </div>
+        </section>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Последние публикации</h3>
+            <ul class="list">
+              <li class="list-item">✅ Отчет по освещению улиц опубликован (10.10)</li>
+              <li class="list-item">📣 Собрание 22 октября в 11:00 (08.10)</li>
+              <li class="list-item">🚧 Начаты работы по отсыпке въездной дороги (05.10)</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Карточка новости</h3>
+            <p><strong>Собрание СНТ 22 октября</strong></p>
+            <p>Повестка: отчет председателя, бюджет на 2025, план работ.</p>
+            <p class="note">Вложения: повестка.pdf, отчет_2024.xlsx</p>
+            <button class="button secondary">Открыть подробнее</button>
+          </div>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Новости СНТ «Рассвет» обновляются ежедневно.</footer>
+  </div>
+</body>
+</html>

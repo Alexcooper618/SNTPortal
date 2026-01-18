@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Контент</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Управление контентом</h1>
+          <div class="note">Новости, документы и объявления</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Новая новость</button>
+        <button class="button secondary">Загрузить документ</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Дашборд</a>
+          <a class="nav-link" href="/pages/admin-fees.html">Взносы</a>
+          <a class="nav-link" href="/pages/admin-reports.html">Отчеты и расходы</a>
+          <a class="nav-link active" href="/pages/admin-content.html">Контент</a>
+          <a class="nav-link" href="/pages/admin-users.html">Пользователи</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Контент</h2>
+          <span class="tag">Черновики: 5</span>
+        </div>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Новости</h3>
+            <ul class="list">
+              <li class="list-item">Черновик: Отчет за сентябрь</li>
+              <li class="list-item">Опубликовано: Собрание 22 октября</li>
+              <li class="list-item">Запланировано: Ремонт освещения</li>
+            </ul>
+            <button class="button secondary">Управлять новостями</button>
+          </div>
+          <div class="card">
+            <h3>Документы</h3>
+            <ul class="list">
+              <li class="list-item">Новые файлы: 3</li>
+              <li class="list-item">На согласовании: 2</li>
+              <li class="list-item">Архив: 120 файлов</li>
+            </ul>
+            <button class="button secondary">Управлять документами</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h3>Архив объявлений</h3>
+            <a class="tag" href="#">Экспорт</a>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Объявление</th>
+                <th>Тип</th>
+                <th>Дата</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Замена счетчиков воды</td>
+                <td>Важно</td>
+                <td>04.10.2024</td>
+                <td><span class="badge success">Опубликовано</span></td>
+              </tr>
+              <tr>
+                <td>Сбор заявок на охрану</td>
+                <td>Объявление</td>
+                <td>29.09.2024</td>
+                <td><span class="badge">Архив</span></td>
+              </tr>
+              <tr>
+                <td>План работ на 2025</td>
+                <td>Отчет</td>
+                <td>20.09.2024</td>
+                <td><span class="badge warning">На согласовании</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Контент публикуется после проверки председателем.</footer>
+  </div>
+</body>
+</html>

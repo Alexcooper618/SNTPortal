@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Пользователи</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Пользователи и доступы</h1>
+          <div class="note">Управление ролями и привязками участков</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Добавить пользователя</button>
+        <button class="button secondary">Импорт списка</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Дашборд</a>
+          <a class="nav-link" href="/pages/admin-fees.html">Взносы</a>
+          <a class="nav-link" href="/pages/admin-reports.html">Отчеты и расходы</a>
+          <a class="nav-link" href="/pages/admin-content.html">Контент</a>
+          <a class="nav-link active" href="/pages/admin-users.html">Пользователи</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Пользователи</h2>
+          <span class="badge">168 жителей</span>
+        </div>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Роли</h3>
+            <ul class="list">
+              <li class="list-item">Житель · 160</li>
+              <li class="list-item">Председатель · 2</li>
+              <li class="list-item">Администратор · 6</li>
+            </ul>
+            <button class="button secondary">Настроить роли</button>
+          </div>
+          <div class="card">
+            <h3>Привязка участков</h3>
+            <p>Проверено: 150 из 168</p>
+            <p class="note">Ожидают подтверждения: 18</p>
+            <button class="button">Проверить запросы</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h3>Реестр жителей</h3>
+            <a class="tag" href="#">Экспорт CSV</a>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>ФИО</th>
+                <th>Участок</th>
+                <th>Роль</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Иванов Сергей</td>
+                <td>18</td>
+                <td>Житель</td>
+                <td><span class="badge success">Активен</span></td>
+              </tr>
+              <tr>
+                <td>Смирнова Анна</td>
+                <td>42</td>
+                <td>Житель</td>
+                <td><span class="badge">Ожидает</span></td>
+              </tr>
+              <tr>
+                <td>Петров Николай</td>
+                <td>7</td>
+                <td>Председатель</td>
+                <td><span class="badge success">Активен</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Данные пользователей обновляются автоматически из реестра СНТ.</footer>
+  </div>
+</body>
+</html>

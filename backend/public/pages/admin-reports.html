@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Отчеты и расходы</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Отчеты и расходы</h1>
+          <div class="note">Финансовая прозрачность для жителей</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Добавить расход</button>
+        <button class="button secondary">Сформировать отчет</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Дашборд</a>
+          <a class="nav-link" href="/pages/admin-fees.html">Взносы</a>
+          <a class="nav-link active" href="/pages/admin-reports.html">Отчеты и расходы</a>
+          <a class="nav-link" href="/pages/admin-content.html">Контент</a>
+          <a class="nav-link" href="/pages/admin-users.html">Пользователи</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Отчеты и расходы</h2>
+          <span class="badge">3 отчета в работе</span>
+        </div>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Добавить расход</h3>
+            <ul class="list">
+              <li class="list-item">Категория: благоустройство</li>
+              <li class="list-item">Сумма: 85 000 ₽</li>
+              <li class="list-item">Файл: акт_освещение.pdf</li>
+              <li class="list-item">Статус: на проверке</li>
+            </ul>
+            <button class="button">Сохранить расход</button>
+          </div>
+          <div class="card">
+            <h3>Статистика расходов</h3>
+            <ul class="list">
+              <li class="list-item">Благоустройство: 420 000 ₽</li>
+              <li class="list-item">Коммуникации: 210 000 ₽</li>
+              <li class="list-item">Охрана: 180 000 ₽</li>
+            </ul>
+            <button class="button secondary">Посмотреть детали</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h3>История расходов</h3>
+            <a class="tag" href="#">Экспорт XLSX</a>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Категория</th>
+                <th>Сумма</th>
+                <th>Документ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>08.10.2024</td>
+                <td>Освещение</td>
+                <td>85 000 ₽</td>
+                <td>акт_освещение.pdf</td>
+              </tr>
+              <tr>
+                <td>02.10.2024</td>
+                <td>Охрана</td>
+                <td>45 000 ₽</td>
+                <td>договор_охрана.pdf</td>
+              </tr>
+              <tr>
+                <td>25.09.2024</td>
+                <td>Дороги</td>
+                <td>120 000 ₽</td>
+                <td>акт_дороги.pdf</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Отчеты публикуются для жителей после утверждения правлением.</footer>
+  </div>
+</body>
+</html>

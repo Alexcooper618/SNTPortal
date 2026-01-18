@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Управление взносами</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Управление взносами</h1>
+          <div class="note">Создание начислений и контроль оплат</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Новое начисление</button>
+        <button class="button secondary">Экспорт реестра</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Дашборд</a>
+          <a class="nav-link active" href="/pages/admin-fees.html">Взносы</a>
+          <a class="nav-link" href="/pages/admin-reports.html">Отчеты и расходы</a>
+          <a class="nav-link" href="/pages/admin-content.html">Контент</a>
+          <a class="nav-link" href="/pages/admin-users.html">Пользователи</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Взносы и начисления</h2>
+          <span class="badge">15 активных начислений</span>
+        </div>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Создание начисления</h3>
+            <ul class="list">
+              <li class="list-item">Тип: ежемесячный / целевой / разовый</li>
+              <li class="list-item">Период: ноябрь 2024</li>
+              <li class="list-item">Сумма: 1 500 ₽</li>
+              <li class="list-item">Срок оплаты: 20.11.2024</li>
+            </ul>
+            <button class="button">Сформировать</button>
+          </div>
+          <div class="card">
+            <h3>Статусы оплат</h3>
+            <ul class="list">
+              <li class="list-item">Оплачено: 148 участков</li>
+              <li class="list-item">Частично: 12 участков</li>
+              <li class="list-item">Просрочено: 8 участков</li>
+            </ul>
+            <button class="button secondary">Напомнить должникам</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h3>Список начислений</h3>
+            <a class="tag" href="#">Экспорт CSV</a>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Период</th>
+                <th>Тип</th>
+                <th>Сумма</th>
+                <th>Сбор</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Ноябрь 2024</td>
+                <td>Ежемесячный</td>
+                <td>1 500 ₽</td>
+                <td>65%</td>
+              </tr>
+              <tr>
+                <td>Целевой ремонт дорог</td>
+                <td>Целевой</td>
+                <td>5 000 ₽</td>
+                <td>48%</td>
+              </tr>
+              <tr>
+                <td>Сентябрь 2024</td>
+                <td>Ежемесячный</td>
+                <td>1 500 ₽</td>
+                <td>100%</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Управление взносами доступно только председателю и бухгалтерии.</footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Профиль</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Профиль жителя</h1>
+          <div class="note">Личные данные и настройки уведомлений</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Сохранить изменения</button>
+        <button class="button secondary">Сменить пароль</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link active" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Админ-панель</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Профиль</h2>
+          <span class="tag">Участок №18</span>
+        </div>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Контактные данные</h3>
+            <ul class="list">
+              <li class="list-item">ФИО: Иванов Сергей</li>
+              <li class="list-item">Телефон: +7 (900) 123-45-67</li>
+              <li class="list-item">Email: ivanov@example.com</li>
+              <li class="list-item">Адрес: ул. Центральная, участок 18</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Привязка участка</h3>
+            <p>Участок №18 · статус подтвержден.</p>
+            <p class="note">Для изменения отправьте запрос в правление.</p>
+            <button class="button secondary">Создать запрос</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h3>Настройки уведомлений</h3>
+            <span class="badge success">Активны</span>
+          </div>
+          <ul class="list">
+            <li class="list-item">Email уведомления · включены</li>
+            <li class="list-item">SMS уведомления · отключены</li>
+            <li class="list-item">Push уведомления · включены</li>
+          </ul>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Настройки профиля применяются для всех сервисов СНТ.</footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Админ-панель</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Админ-панель председателя</h1>
+          <div class="note">Контроль платежей, обращений и контента</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Создать начисление</button>
+        <button class="button secondary">Опубликовать новость</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link active" href="/pages/admin-dashboard.html">Дашборд</a>
+          <a class="nav-link" href="/pages/admin-fees.html">Взносы</a>
+          <a class="nav-link" href="/pages/admin-reports.html">Отчеты и расходы</a>
+          <a class="nav-link" href="/pages/admin-content.html">Контент</a>
+          <a class="nav-link" href="/pages/admin-users.html">Пользователи</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Дашборд председателя</h2>
+          <span class="tag">Обновлено сегодня</span>
+        </div>
+
+        <section class="grid three">
+          <div class="card">
+            <h3>Сбор взносов</h3>
+            <p>Поступило: 1 250 000 ₽</p>
+            <p>Задолженность: 320 000 ₽</p>
+            <span class="badge warning">12 должников</span>
+          </div>
+          <div class="card">
+            <h3>Обращения жителей</h3>
+            <p>Новые обращения: 8</p>
+            <p>В работе: 14</p>
+            <span class="badge">Срок ответа 48ч</span>
+          </div>
+          <div class="card">
+            <h3>Контент</h3>
+            <p>Черновики новостей: 3</p>
+            <p>Документы на проверке: 2</p>
+            <button class="button secondary">Перейти к контенту</button>
+          </div>
+        </section>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Быстрые действия</h3>
+            <ul class="list">
+              <li class="list-item">Создать начисление на ноябрь</li>
+              <li class="list-item">Опубликовать отчет за сентябрь</li>
+              <li class="list-item">Обновить карту работ</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Ближайшие события</h3>
+            <ul class="list">
+              <li class="list-item">22 октября — общее собрание</li>
+              <li class="list-item">24 октября — проверка скважины №2</li>
+              <li class="list-item">30 октября — закрытие периода оплаты</li>
+            </ul>
+          </div>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Доступ председателя защищен двухфакторной авторизацией.</footer>
+  </div>
+</body>
+</html>

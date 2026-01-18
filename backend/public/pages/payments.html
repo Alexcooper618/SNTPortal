@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>СНТ Портал — Платежи</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="brand-logo">СНТ</div>
+        <div>
+          <h1>Информационный портал СНТ «Рассвет»</h1>
+          <div class="note">Оплаты, начисления и квитанции</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="button">Оплатить взнос</button>
+        <button class="button secondary">Задать вопрос</button>
+        <span class="badge warning">Долг 3 200 ₽</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="nav-section">
+          <div class="nav-title">Житель</div>
+          <a class="nav-link" href="/index.html">Главная</a>
+          <a class="nav-link active" href="/pages/payments.html">Платежи</a>
+          <a class="nav-link" href="/pages/news.html">Новости</a>
+          <a class="nav-link" href="/pages/map.html">Карта СНТ</a>
+          <a class="nav-link" href="/pages/documents.html">Документы</a>
+          <a class="nav-link" href="/pages/forum.html">Форум / Чат</a>
+          <a class="nav-link" href="/pages/profile.html">Профиль</a>
+        </div>
+        <div class="nav-section">
+          <div class="nav-title">Председатель</div>
+          <a class="nav-link" href="/pages/admin-dashboard.html">Админ-панель</a>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="section-header">
+          <h2 class="page-title">Платежи и взносы</h2>
+          <button class="button">Оплатить сейчас</button>
+        </div>
+
+        <section class="grid two">
+          <div class="card">
+            <h3>Сводка</h3>
+            <p>Баланс: <strong>-3 200 ₽</strong> (долг)</p>
+            <p>Следующий взнос: 20 октября, сумма 1 500 ₽.</p>
+            <div class="note">Автонапоминания отправляются за 5 дней.</div>
+          </div>
+          <div class="card">
+            <h3>Квитанции</h3>
+            <ul class="list">
+              <li class="list-item">Сентябрь 2024 · 1 500 ₽ · Скачать PDF</li>
+              <li class="list-item">Август 2024 · 1 500 ₽ · Скачать PDF</li>
+              <li class="list-item">Целевой взнос · 5 000 ₽ · Скачать PDF</li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h3>Начисления</h3>
+            <span class="badge">3 активных</span>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Период</th>
+                <th>Тип</th>
+                <th>Сумма</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Октябрь 2024</td>
+                <td>Ежемесячный</td>
+                <td>1 500 ₽</td>
+                <td><span class="badge warning">Ожидается</span></td>
+              </tr>
+              <tr>
+                <td>Сентябрь 2024</td>
+                <td>Ежемесячный</td>
+                <td>1 500 ₽</td>
+                <td><span class="badge success">Оплачено</span></td>
+              </tr>
+              <tr>
+                <td>Целевой ремонт дорог</td>
+                <td>Разовый</td>
+                <td>5 000 ₽</td>
+                <td><span class="badge warning">Частично</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section class="card">
+          <div class="section-header">
+            <h3>История оплат</h3>
+            <a class="tag" href="#">Экспорт</a>
+          </div>
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Сумма</th>
+                <th>Способ</th>
+                <th>Документ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>20.09.2024</td>
+                <td>1 500 ₽</td>
+                <td>Карта</td>
+                <td>Квитанция №2481</td>
+              </tr>
+              <tr>
+                <td>20.08.2024</td>
+                <td>1 500 ₽</td>
+                <td>Карта</td>
+                <td>Квитанция №2337</td>
+              </tr>
+              <tr>
+                <td>15.07.2024</td>
+                <td>5 000 ₽</td>
+                <td>Перевод</td>
+                <td>Квитанция №2210</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+    <footer class="footer">Поддержка платежей: billing@snt-portal.ru</footer>
+  </div>
+</body>
+</html>
