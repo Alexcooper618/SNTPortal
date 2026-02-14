@@ -1,10 +1,3 @@
-
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,50 +7,689 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Snt {
-  id        Int      @id @default(autoincrement())
-  name      String
-  location  String?
-  plots     Plot[]
-  users     User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  phone     String   @unique
-  role      UserRole @default(USER)
-  sntId     Int?
-  snt       Snt?     @relation(fields: [sntId], references: [id])
-  plots     Plot[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Plot {
-  id        Int      @id @default(autoincrement())
-  number    String
-  area      Float?
-  sntId     Int
-  snt       Snt      @relation(fields: [sntId], references: [id])
-  ownerId   Int?
-  owner     User?    @relation(fields: [ownerId], references: [id])
-  balance   Float    @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum TenantStatus {
+  ACTIVE
+  ARCHIVED
 }
 
 enum UserRole {
   USER
   CHAIRMAN
-  COUNCIL
-  ADMIN
 }
 
+enum OtpPurpose {
+  LOGIN
+  REGISTER
+}
 
+enum ChargeType {
+  MONTHLY
+  TARGETED
+  ONE_TIME
+}
 
+enum ChargeStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
 
+enum InvoiceStatus {
+  PENDING
+  PARTIAL
+  PAID
+  CANCELED
+}
 
+enum PaymentProvider {
+  T_BANK
+}
 
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+  CANCELED
+}
+
+enum LedgerKind {
+  ACCRUAL
+  PAYMENT
+  REFUND
+  ADJUSTMENT
+}
+
+enum NewsStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DocumentVisibility {
+  RESIDENTS
+  CHAIRMAN_ONLY
+}
+
+enum ForumThreadStatus {
+  OPEN
+  CLOSED
+  HIDDEN
+}
+
+enum MapObjectType {
+  PLOT
+  ROAD
+  GATE
+  WELL
+  LIGHT
+  FACILITY
+  OTHER
+}
+
+enum IncidentPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+enum MeetingStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum VoteStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum VoteChoice {
+  YES
+  NO
+  ABSTAIN
+}
+
+enum NotificationType {
+  SYSTEM
+  BILLING
+  NEWS
+  FORUM
+  INCIDENT
+  GOVERNANCE
+}
+
+model Tenant {
+  id               Int                  @id @default(autoincrement())
+  name             String
+  slug             String               @unique
+  location         String?
+  status           TenantStatus         @default(ACTIVE)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  users            User[]
+  plots            Plot[]
+  plotOwnerships   PlotOwnership[]
+  sessions         UserSession[]
+  otpCodes         OtpCode[]
+  charges          Charge[]
+  invoices         Invoice[]
+  payments         Payment[]
+  webhookEvents    PaymentWebhookEvent[]
+  ledgerEntries    LedgerEntry[]
+  newsPosts        NewsPost[]
+  documents        Document[]
+  documentAccesses DocumentAccess[]
+  forumThreads     ForumThread[]
+  forumMessages    ForumMessage[]
+  chatRooms        ChatRoom[]
+  chatMessages     ChatMessage[]
+  chatRoomMembers  ChatRoomMember[]
+  chatRoomReads    ChatRoomRead[]
+  mapLayers        MapLayer[]
+  mapObjects       MapObject[]
+  incidents        Incident[]
+  meetings         Meeting[]
+  votes            Vote[]
+  voteBallots      VoteBallot[]
+  notifications    InAppNotification[]
+  auditLogs        AuditLog[]
+}
+
+model User {
+  id                Int                 @id @default(autoincrement())
+  tenantId          Int
+  tenant            Tenant              @relation(fields: [tenantId], references: [id])
+  phone             String
+  name              String
+  role              UserRole            @default(USER)
+  isActive          Boolean             @default(true)
+  passwordHash      String?
+  mustChangePassword Boolean            @default(false)
+  passwordUpdatedAt DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  ownedPlots        Plot[]              @relation("PlotOwner")
+  plotMemberships   PlotOwnership[]
+  sessions          UserSession[]
+  otpCodes          OtpCode[]
+  authoredCharges   Charge[]            @relation("ChargeCreator")
+  invoices          Invoice[]
+  initiatedPayments Payment[]           @relation("PaymentInitiator")
+  newsPosts         NewsPost[]          @relation("NewsAuthor")
+  documents         Document[]          @relation("DocumentUploader")
+  forumThreads      ForumThread[]       @relation("ForumThreadAuthor")
+  forumMessages     ForumMessage[]      @relation("ForumMessageAuthor")
+  chatMessages      ChatMessage[]       @relation("ChatMessageAuthor")
+  chatRoomMemberships ChatRoomMember[]
+  chatRoomReads     ChatRoomRead[]
+  incidentsCreated  Incident[]          @relation("IncidentCreator")
+  incidentsAssigned Incident[]          @relation("IncidentAssignee")
+  meetingsCreated   Meeting[]           @relation("MeetingCreator")
+  votesCreated      Vote[]              @relation("VoteCreator")
+  ballots           VoteBallot[]
+  notifications     InAppNotification[]
+  auditLogs         AuditLog[]          @relation("AuditActor")
+  documentAccesses  DocumentAccess[]
+  ledgerEntries     LedgerEntry[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId, role])
+}
+
+model Plot {
+  id            Int             @id @default(autoincrement())
+  tenantId      Int
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  number        String
+  area          Float?
+  balanceCents  Int             @default(0)
+  ownerId       Int?
+  owner         User?           @relation("PlotOwner", fields: [ownerId], references: [id])
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  ownerships    PlotOwnership[]
+  chargeLines   ChargeLine[]
+  invoices      Invoice[]
+  ledgerEntries LedgerEntry[]
+  mapObjects    MapObject[]
+  incidents     Incident[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, ownerId])
+}
+
+model PlotOwnership {
+  id        Int       @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  plotId    Int
+  plot      Plot      @relation(fields: [plotId], references: [id])
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id])
+  isPrimary Boolean   @default(false)
+  fromDate  DateTime  @default(now())
+  toDate    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, userId])
+  @@index([tenantId, plotId])
+  @@index([plotId, userId])
+}
+
+model UserSession {
+  id               String    @id @default(cuid())
+  tenantId         Int
+  tenant           Tenant    @relation(fields: [tenantId], references: [id])
+  userId           Int
+  user             User      @relation(fields: [userId], references: [id])
+  refreshTokenHash String
+  userAgent        String?
+  ipAddress        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([tenantId, userId])
+  @@index([expiresAt])
+}
+
+model OtpCode {
+  id        String     @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  userId    Int?
+  user      User?      @relation(fields: [userId], references: [id])
+  phone     String
+  purpose   OtpPurpose @default(LOGIN)
+  codeHash  String
+  attempts  Int        @default(0)
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime   @default(now())
+
+  @@index([tenantId, phone, purpose])
+  @@index([expiresAt])
+}
+
+model Charge {
+  id          Int          @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  title       String
+  description String?
+  type        ChargeType
+  status      ChargeStatus @default(DRAFT)
+  amountCents Int
+  dueDate     DateTime
+  createdById Int
+  createdBy   User         @relation("ChargeCreator", fields: [createdById], references: [id])
+  publishedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  lines       ChargeLine[]
+  invoices    Invoice[]
+
+  @@index([tenantId, status, dueDate])
+}
+
+model ChargeLine {
+  id          Int      @id @default(autoincrement())
+  chargeId    Int
+  charge      Charge   @relation(fields: [chargeId], references: [id])
+  plotId      Int
+  plot        Plot     @relation(fields: [plotId], references: [id])
+  amountCents Int
+  createdAt   DateTime @default(now())
+
+  @@unique([chargeId, plotId])
+}
+
+model Invoice {
+  id          Int           @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  chargeId    Int?
+  charge      Charge?       @relation(fields: [chargeId], references: [id])
+  plotId      Int
+  plot        Plot          @relation(fields: [plotId], references: [id])
+  userId      Int?
+  user        User?         @relation(fields: [userId], references: [id])
+  number      String
+  status      InvoiceStatus @default(PENDING)
+  totalCents  Int
+  paidCents   Int           @default(0)
+  dueDate     DateTime
+  issuedAt    DateTime      @default(now())
+  closedAt    DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  payments    Payment[]
+  ledgerEntries LedgerEntry[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  tenantId          Int
+  tenant            Tenant          @relation(fields: [tenantId], references: [id])
+  invoiceId         Int
+  invoice           Invoice         @relation(fields: [invoiceId], references: [id])
+  createdById       Int?
+  createdBy         User?           @relation("PaymentInitiator", fields: [createdById], references: [id])
+  provider          PaymentProvider
+  status            PaymentStatus   @default(CREATED)
+  amountCents       Int
+  idempotencyKey    String
+  providerPaymentId String?
+  externalUrl       String?
+  rawPayload        Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  settledAt         DateTime?
+  ledgerEntries     LedgerEntry[]
+  webhookEvents     PaymentWebhookEvent[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, status])
+}
+
+model PaymentWebhookEvent {
+  id         String          @id @default(cuid())
+  tenantId   Int
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
+  provider   PaymentProvider
+  eventId    String
+  paymentId  String?
+  payment    Payment?        @relation(fields: [paymentId], references: [id])
+  payload    Json
+  receivedAt DateTime        @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, eventId])
+  @@index([tenantId, receivedAt])
+}
+
+model LedgerEntry {
+  id          String     @id @default(cuid())
+  tenantId    Int
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  plotId      Int?
+  plot        Plot?      @relation(fields: [plotId], references: [id])
+  userId      Int?
+  user        User?      @relation(fields: [userId], references: [id])
+  invoiceId   Int?
+  invoice     Invoice?   @relation(fields: [invoiceId], references: [id])
+  paymentId   String?
+  payment     Payment?   @relation(fields: [paymentId], references: [id])
+  kind        LedgerKind
+  amountCents Int
+  description String?
+  postedAt    DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+
+  @@index([tenantId, postedAt])
+}
+
+model NewsPost {
+  id          Int        @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  authorId    Int
+  author      User       @relation("NewsAuthor", fields: [authorId], references: [id])
+  title       String
+  body        String
+  status      NewsStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  attachments NewsAttachment[]
+
+  @@index([tenantId, status, publishedAt])
+}
+
+model NewsAttachment {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  post      NewsPost @relation(fields: [postId], references: [id])
+  fileName  String
+  fileUrl   String
+  createdAt DateTime @default(now())
+}
+
+model Document {
+  id           Int                @id @default(autoincrement())
+  tenantId     Int
+  tenant       Tenant             @relation(fields: [tenantId], references: [id])
+  uploadedById Int
+  uploadedBy   User               @relation("DocumentUploader", fields: [uploadedById], references: [id])
+  title        String
+  category     String
+  fileUrl      String
+  fileType     String
+  visibility   DocumentVisibility @default(RESIDENTS)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  accesses     DocumentAccess[]
+
+  @@index([tenantId, category])
+}
+
+model DocumentAccess {
+  id         Int      @id @default(autoincrement())
+  tenantId   Int
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  documentId Int
+  document   Document @relation(fields: [documentId], references: [id])
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  viewedAt   DateTime @default(now())
+
+  @@unique([documentId, userId])
+}
+
+model ForumThread {
+  id        Int               @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant            @relation(fields: [tenantId], references: [id])
+  authorId  Int
+  author    User              @relation("ForumThreadAuthor", fields: [authorId], references: [id])
+  title     String
+  status    ForumThreadStatus @default(OPEN)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  messages  ForumMessage[]
+
+  @@index([tenantId, status])
+}
+
+model ForumMessage {
+  id        Int         @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  threadId  Int
+  thread    ForumThread @relation(fields: [threadId], references: [id])
+  authorId  Int
+  author    User        @relation("ForumMessageAuthor", fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([tenantId, threadId, createdAt])
+}
+
+model ChatRoom {
+  id         String        @id @default(cuid())
+  tenantId   Int
+  tenant     Tenant        @relation(fields: [tenantId], references: [id])
+  name       String
+  isPrivate  Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  messages   ChatMessage[]
+  members    ChatRoomMember[]
+  reads      ChatRoomRead[]
+
+  @@unique([tenantId, name])
+}
+
+model ChatRoomMember {
+  id        Int       @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  roomId    String
+  room      ChatRoom  @relation(fields: [roomId], references: [id])
+  userId    Int
+  user      User      @relation(fields: [userId], references: [id])
+  createdAt DateTime  @default(now())
+
+  @@unique([roomId, userId])
+  @@index([tenantId, userId])
+}
+
+model ChatRoomRead {
+  id         Int      @id @default(autoincrement())
+  tenantId   Int
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  roomId     String
+  room       ChatRoom @relation(fields: [roomId], references: [id])
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  lastReadAt DateTime
+  updatedAt  DateTime @updatedAt
+
+  @@unique([roomId, userId])
+  @@index([tenantId, userId])
+}
+
+model ChatMessage {
+  id        String    @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  roomId    String
+  room      ChatRoom  @relation(fields: [roomId], references: [id])
+  authorId  Int
+  author    User      @relation("ChatMessageAuthor", fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([tenantId, roomId, createdAt])
+}
+
+model MapLayer {
+  id        Int       @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  name      String
+  isVisible Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  objects   MapObject[]
+
+  @@unique([tenantId, name])
+}
+
+model MapObject {
+  id          Int          @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  layerId     Int
+  layer       MapLayer     @relation(fields: [layerId], references: [id])
+  type        MapObjectType
+  title       String
+  description String?
+  lat         Float?
+  lng         Float?
+  geoJson     Json?
+  plotId      Int?
+  plot        Plot?        @relation(fields: [plotId], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  incidents   Incident[]
+
+  @@index([tenantId, type])
+}
+
+model Incident {
+  id          String           @id @default(cuid())
+  tenantId    Int
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  createdById Int
+  createdBy   User             @relation("IncidentCreator", fields: [createdById], references: [id])
+  assignedToId Int?
+  assignedTo  User?            @relation("IncidentAssignee", fields: [assignedToId], references: [id])
+  plotId      Int?
+  plot        Plot?            @relation(fields: [plotId], references: [id])
+  mapObjectId Int?
+  mapObject   MapObject?       @relation(fields: [mapObjectId], references: [id])
+  title       String
+  description String
+  priority    IncidentPriority @default(MEDIUM)
+  status      IncidentStatus   @default(OPEN)
+  openedAt    DateTime         @default(now())
+  resolvedAt  DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([tenantId, status, priority])
+}
+
+model Meeting {
+  id         String        @id @default(cuid())
+  tenantId   Int
+  tenant     Tenant        @relation(fields: [tenantId], references: [id])
+  createdById Int
+  createdBy  User          @relation("MeetingCreator", fields: [createdById], references: [id])
+  title      String
+  agenda     String?
+  scheduledAt DateTime
+  status     MeetingStatus @default(DRAFT)
+  protocolUrl String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  votes      Vote[]
+
+  @@index([tenantId, scheduledAt])
+}
+
+model Vote {
+  id          String     @id @default(cuid())
+  tenantId    Int
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  meetingId   String
+  meeting     Meeting    @relation(fields: [meetingId], references: [id])
+  createdById Int
+  createdBy   User       @relation("VoteCreator", fields: [createdById], references: [id])
+  title       String
+  description String?
+  status      VoteStatus @default(DRAFT)
+  opensAt     DateTime
+  closesAt    DateTime
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  ballots     VoteBallot[]
+
+  @@index([tenantId, status])
+}
+
+model VoteBallot {
+  id        String     @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  voteId    String
+  vote      Vote       @relation(fields: [voteId], references: [id])
+  userId    Int
+  user      User       @relation(fields: [userId], references: [id])
+  choice    VoteChoice
+  createdAt DateTime   @default(now())
+
+  @@unique([voteId, userId])
+}
+
+model InAppNotification {
+  id        String           @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant           @relation(fields: [tenantId], references: [id])
+  userId    Int
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  body      String
+  payload   Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  readAt    DateTime?
+
+  @@index([tenantId, userId, isRead])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  actorId   Int?
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id])
+  action    String
+  entityType String
+  entityId  String?
+  requestId String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}

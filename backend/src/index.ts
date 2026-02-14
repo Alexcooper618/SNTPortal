@@ -1,26 +1,17 @@
-import express, { Request, Response } from "express";
-import path from "path";
-import cors from "cors";
-import dotenv from "dotenv";
-import authRoutes from "./routes/auth";
+import { app } from "./app";
+import { env } from "./config/env";
+import { ensureCoreChatRooms, ensureDefaultTenant } from "./lib/tenant";
 
-dotenv.config();
+const bootstrap = async () => {
+  await ensureDefaultTenant();
+  await ensureCoreChatRooms();
 
-const app = express();
-const port = process.env.PORT || 3000;
+  app.listen(env.port, () => {
+    console.log(`SNT backend started on port ${env.port}`);
+  });
+};
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "..", "public")));
-
-// Health check
-app.get("/health", (req: Request, res: Response) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// Routes
-app.use("/auth", authRoutes);
-
-app.listen(port, () => {
-  console.log(`SNT backend running on port ${port}`);
+bootstrap().catch((error) => {
+  console.error("Failed to start backend", error);
+  process.exit(1);
 });

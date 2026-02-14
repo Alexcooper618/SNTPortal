@@ -1,0 +1,195 @@
+openapi: 3.1.0
+info:
+  title: SNT Portal API
+  version: 1.0.0
+  description: |
+    Unified API for resident/chairman portal.
+servers:
+  - url: http://localhost:3000
+    description: local
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ApiError:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+        requestId:
+          type: string
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+
+  /api/v1/auth/request-otp:
+    post:
+      summary: Request OTP (registered users only)
+
+  /api/v1/auth/verify-otp:
+    post:
+      summary: Verify OTP and login
+
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh token pair
+
+  /api/v1/auth/login:
+    post:
+      summary: Login by phone + password
+
+  /api/v1/auth/change-password:
+    post:
+      summary: Change password for current user
+      security:
+        - bearerAuth: []
+
+  /api/v1/auth/logout:
+    post:
+      summary: Revoke session
+      security:
+        - bearerAuth: []
+
+  /api/v1/users:
+    get:
+      summary: List users (chairman)
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create USER with temporary password (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/plots:
+    get:
+      summary: List plots
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create plot (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/billing/charges:
+    get:
+      summary: List charges
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create charge (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/payments/initiate:
+    post:
+      summary: Initiate T-Bank hosted payment
+      security:
+        - bearerAuth: []
+
+  /api/v1/payments/webhook/tbank:
+    post:
+      summary: T-Bank webhook callback
+
+  /api/v1/news:
+    get:
+      summary: List news
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create draft news (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/documents:
+    get:
+      summary: List documents
+      security:
+        - bearerAuth: []
+    post:
+      summary: Upload document metadata (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/forum/threads:
+    get:
+      summary: List threads
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create thread
+      security:
+        - bearerAuth: []
+
+  /api/v1/chat/rooms:
+    get:
+      summary: List chat rooms
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create chat room (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/map/layers:
+    get:
+      summary: List map layers with objects
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create map layer (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/incidents:
+    get:
+      summary: List incidents
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create incident
+      security:
+        - bearerAuth: []
+
+  /api/v1/meetings:
+    get:
+      summary: List meetings
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create meeting (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/votes:
+    get:
+      summary: List votes
+      security:
+        - bearerAuth: []
+    post:
+      summary: Create vote (chairman)
+      security:
+        - bearerAuth: []
+
+  /api/v1/notifications:
+    get:
+      summary: List own in-app notifications
+      security:
+        - bearerAuth: []
+
+  /api/v1/audit:
+    get:
+      summary: List audit events (chairman)
+      security:
+        - bearerAuth: []

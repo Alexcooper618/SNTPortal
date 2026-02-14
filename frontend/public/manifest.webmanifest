@@ -1,0 +1,17 @@
+{
+  "name": "СНТ Портал",
+  "short_name": "СНТ",
+  "description": "Портал жителей и председателя",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3efe6",
+  "theme_color": "#f3efe6",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/next.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
