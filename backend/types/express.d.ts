@@ -68,5 +68,5 @@ declare module "express" {
 
 declare module "cors" {
   type CorsMiddleware = (...args: any[]) => any;
-  export default function cors(): CorsMiddleware;
+  export default function cors(options?: any): CorsMiddleware;
 }
