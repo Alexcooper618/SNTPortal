@@ -1,13 +1,40 @@
+import { NotificationType, Prisma, UserRole } from "@prisma/client";
 import { Router } from "express";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
-import { badRequest, notFound, unauthorized } from "../lib/errors";
+import { logAudit } from "../lib/audit";
+import { badRequest, customError, notFound, unauthorized } from "../lib/errors";
 import { assertString } from "../lib/validators";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { asyncHandler } from "../middlewares/async-handler";
 
 const router = Router();
 router.use(requireAuth);
+
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+const DELETED_MESSAGE_PLACEHOLDER = "Сообщение удалено";
+
+interface ChatMessageAuthor {
+  id: number;
+  name: string;
+  role: UserRole;
+}
+
+interface ChatMessageDto {
+  id: string;
+  body: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isEdited: boolean;
+  editedAt: Date | null;
+  isDeleted: boolean;
+  author: ChatMessageAuthor;
+  replyTo: {
+    id: string;
+    bodyPreview: string;
+    authorName: string;
+    isDeleted: boolean;
+  } | null;
+}
 
 const parseOptionalIsoDate = (value: unknown, field: string): Date | null => {
   if (value === undefined || value === null) {
@@ -24,6 +51,71 @@ const parseOptionalIsoDate = (value: unknown, field: string): Date | null => {
   }
 
   return parsed;
+};
+
+const normalizeMentionKey = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/[^\p{L}\p{N}+ ]/gu, "")
+    .replace(/\s+/g, "")
+    .trim();
+
+const normalizePhoneLike = (value: string) => value.replace(/[^+\d]/g, "").trim();
+
+const extractMentionTokens = (value: string): string[] => {
+  const tokens = new Set<string>();
+  const regex = /(^|\s)@([^\s@]{1,64})/gu;
+
+  for (const match of value.matchAll(regex)) {
+    const token = match[2]?.trim();
+    if (token) {
+      tokens.add(token);
+    }
+  }
+
+  return [...tokens];
+};
+
+const toMessageDto = (message: {
+  id: string;
+  body: string;
+  createdAt: Date;
+  updatedAt: Date;
+  isEdited?: boolean;
+  editedAt?: Date | null;
+  isDeleted?: boolean;
+  author: ChatMessageAuthor;
+  replyTo?: {
+    id: string;
+    body: string;
+    isDeleted?: boolean;
+    author: {
+      name: string;
+    };
+  } | null;
+}): ChatMessageDto => {
+  const isDeleted = Boolean(message.isDeleted);
+  const replyTo = message.replyTo
+    ? {
+        id: message.replyTo.id,
+        bodyPreview: (message.replyTo.isDeleted ? DELETED_MESSAGE_PLACEHOLDER : message.replyTo.body).slice(0, 140),
+        authorName: message.replyTo.author.name,
+        isDeleted: Boolean(message.replyTo.isDeleted),
+      }
+    : null;
+
+  return {
+    id: message.id,
+    body: isDeleted ? DELETED_MESSAGE_PLACEHOLDER : message.body,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+    isEdited: Boolean(message.isEdited),
+    editedAt: message.editedAt ?? null,
+    isDeleted,
+    author: message.author,
+    replyTo,
+  };
 };
 
 const upsertRoomRead = async (
@@ -69,6 +161,121 @@ const canAccessRoom = async (tenantId: number, userId: number, roomId: string) =
   }
 
   return room;
+};
+
+const resolveMentionedUserIds = async (
+  tx: Prisma.TransactionClient,
+  params: { tenantId: number; body: string; excludeUserId: number }
+) => {
+  const tokens = extractMentionTokens(params.body);
+  if (tokens.length === 0) {
+    return [] as number[];
+  }
+
+  const users = await tx.user.findMany({
+    where: {
+      tenantId: params.tenantId,
+      isActive: true,
+      id: {
+        not: params.excludeUserId,
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+    },
+    take: 1000,
+  });
+
+  const byName = new Map<string, number>();
+  const byPhone = new Map<string, number>();
+
+  for (const user of users) {
+    const nameKey = normalizeMentionKey(user.name);
+    if (nameKey && !byName.has(nameKey)) {
+      byName.set(nameKey, user.id);
+    }
+
+    const phoneKey = normalizePhoneLike(user.phone);
+    if (phoneKey && !byPhone.has(phoneKey)) {
+      byPhone.set(phoneKey, user.id);
+    }
+  }
+
+  const ids = new Set<number>();
+
+  for (const token of tokens) {
+    const normalizedPhone = normalizePhoneLike(token);
+    const normalizedName = normalizeMentionKey(token);
+
+    if (normalizedPhone && byPhone.has(normalizedPhone)) {
+      ids.add(byPhone.get(normalizedPhone)!);
+      continue;
+    }
+
+    if (normalizedName && byName.has(normalizedName)) {
+      ids.add(byName.get(normalizedName)!);
+    }
+  }
+
+  return [...ids];
+};
+
+const syncMentionsAndNotifications = async (
+  tx: Prisma.TransactionClient,
+  params: {
+    tenantId: number;
+    room: { id: string; name: string; isPrivate: boolean };
+    messageId: string;
+    messageBody: string;
+    authorId: number;
+  }
+) => {
+  await tx.chatMessageMention.deleteMany({
+    where: {
+      tenantId: params.tenantId,
+      messageId: params.messageId,
+    },
+  });
+
+  if (params.room.isPrivate) {
+    return;
+  }
+
+  const mentionedUserIds = await resolveMentionedUserIds(tx, {
+    tenantId: params.tenantId,
+    body: params.messageBody,
+    excludeUserId: params.authorId,
+  });
+
+  if (mentionedUserIds.length === 0) {
+    return;
+  }
+
+  await tx.chatMessageMention.createMany({
+    data: mentionedUserIds.map((userId) => ({
+      tenantId: params.tenantId,
+      messageId: params.messageId,
+      mentionedUserId: userId,
+    })),
+    skipDuplicates: true,
+  });
+
+  await tx.inAppNotification.createMany({
+    data: mentionedUserIds.map((userId) => ({
+      tenantId: params.tenantId,
+      userId,
+      type: NotificationType.FORUM,
+      title: "Вас упомянули в чате",
+      body: `Комната: ${params.room.isPrivate ? "Личный чат" : params.room.name}`,
+      payload: {
+        roomId: params.room.id,
+        messageId: params.messageId,
+      },
+    })),
+    skipDuplicates: false,
+  });
 };
 
 const getUnreadByRoom = async (tenantId: number, userId: number, roomIds: string[]) => {
@@ -125,7 +332,6 @@ const getUnreadByRoom = async (tenantId: number, userId: number, roomIds: string
     if (unreadCount > 0) unreadRooms += 1;
   }
 
-  // Ensure all roomIds exist in the map.
   for (const roomId of roomIds) {
     if (!byRoom.has(roomId)) {
       byRoom.set(roomId, { unreadCount: 0, lastReadAt: null });
@@ -233,6 +439,7 @@ router.get(
       select: {
         id: true,
         name: true,
+        phone: true,
         role: true,
         ownedPlots: {
           select: {
@@ -311,7 +518,7 @@ router.get(
           id: member.id,
           user: member.user,
         })),
-        lastMessage: room.messages[0] ?? null,
+        lastMessage: room.messages[0] ? toMessageDto(room.messages[0]) : null,
         unreadCount: byRoom.get(room.id)?.unreadCount ?? 0,
         lastReadAt: byRoom.get(room.id)?.lastReadAt ?? null,
         messages: undefined,
@@ -337,7 +544,6 @@ router.post(
         },
       });
 
-      // If the room is private, add the creator as a member; otherwise it's unreachable.
       if (created.isPrivate) {
         await tx.chatRoomMember.create({
           data: {
@@ -473,6 +679,15 @@ router.get(
             role: true,
           },
         },
+        replyTo: {
+          include: {
+            author: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
       },
       take,
       orderBy: {
@@ -482,7 +697,7 @@ router.get(
 
     res.json({
       room,
-      items: messages.reverse(),
+      items: messages.reverse().map((message) => toMessageDto(message)),
     });
   })
 );
@@ -497,6 +712,26 @@ router.post(
       throw badRequest("Message is too long");
     }
 
+    const replyToMessageId = typeof req.body.replyToMessageId === "string" ? req.body.replyToMessageId.trim() : undefined;
+
+    if (replyToMessageId) {
+      const parent = await prisma.chatMessage.findFirst({
+        where: {
+          id: replyToMessageId,
+          tenantId: req.user!.tenantId,
+          roomId: room.id,
+          isDeleted: false,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!parent) {
+        throw customError(400, "INVALID_REPLY_TARGET", "Reply target is invalid or unavailable");
+      }
+    }
+
     const message = await prisma.$transaction(async (tx) => {
       const created = await tx.chatMessage.create({
         data: {
@@ -504,6 +739,7 @@ router.post(
           roomId: room.id,
           authorId: req.user!.userId,
           body,
+          replyToMessageId: replyToMessageId || null,
         },
         include: {
           author: {
@@ -513,7 +749,24 @@ router.post(
               role: true,
             },
           },
+          replyTo: {
+            include: {
+              author: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
         },
+      });
+
+      await syncMentionsAndNotifications(tx, {
+        tenantId: req.user!.tenantId,
+        room,
+        messageId: created.id,
+        messageBody: created.body,
+        authorId: req.user!.userId,
       });
 
       await tx.chatRoom.update({
@@ -525,7 +778,6 @@ router.post(
         },
       });
 
-      // Do not accumulate unread for author's own messages.
       await upsertRoomRead(tx, {
         tenantId: req.user!.tenantId,
         roomId: room.id,
@@ -536,7 +788,185 @@ router.post(
       return created;
     });
 
-    res.status(201).json({ message });
+    res.status(201).json({ message: toMessageDto(message) });
+  })
+);
+
+router.patch(
+  "/messages/:messageId",
+  asyncHandler(async (req, res) => {
+    const body = assertString(req.body.body, "body");
+    if (body.length > 4000) {
+      throw badRequest("Message is too long");
+    }
+
+    const existing = await prisma.chatMessage.findFirst({
+      where: {
+        id: req.params.messageId,
+        tenantId: req.user!.tenantId,
+      },
+      include: {
+        room: true,
+      },
+    });
+
+    if (!existing) {
+      throw customError(404, "MESSAGE_NOT_FOUND", "Message not found");
+    }
+
+    await canAccessRoom(req.user!.tenantId, req.user!.userId, existing.roomId);
+
+    if (existing.authorId !== req.user!.userId) {
+      throw customError(403, "EDIT_NOT_ALLOWED", "Only author can edit message");
+    }
+
+    if (existing.isDeleted) {
+      throw customError(403, "EDIT_NOT_ALLOWED", "Deleted message cannot be edited");
+    }
+
+    if (Date.now() - existing.createdAt.getTime() > EDIT_WINDOW_MS) {
+      throw customError(400, "EDIT_WINDOW_EXPIRED", "Edit window has expired");
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.chatMessage.update({
+        where: {
+          id: existing.id,
+        },
+        data: {
+          body,
+          isEdited: true,
+          editedAt: new Date(),
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              role: true,
+            },
+          },
+          replyTo: {
+            include: {
+              author: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      await syncMentionsAndNotifications(tx, {
+        tenantId: req.user!.tenantId,
+        room: existing.room,
+        messageId: next.id,
+        messageBody: next.body,
+        authorId: req.user!.userId,
+      });
+
+      await tx.chatRoom.update({
+        where: {
+          id: existing.roomId,
+        },
+        data: {
+          updatedAt: new Date(),
+        },
+      });
+
+      return next;
+    });
+
+    await logAudit({
+      tenantId: req.user!.tenantId,
+      actorId: req.user!.userId,
+      action: "CHAT_MESSAGE_EDITED",
+      entityType: "ChatMessage",
+      entityId: updated.id,
+      requestId: req.requestId,
+      metadata: {
+        roomId: updated.roomId,
+      },
+    });
+
+    res.json({ message: toMessageDto(updated) });
+  })
+);
+
+router.delete(
+  "/messages/:messageId",
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.chatMessage.findFirst({
+      where: {
+        id: req.params.messageId,
+        tenantId: req.user!.tenantId,
+      },
+      include: {
+        room: true,
+      },
+    });
+
+    if (!existing) {
+      throw customError(404, "MESSAGE_NOT_FOUND", "Message not found");
+    }
+
+    await canAccessRoom(req.user!.tenantId, req.user!.userId, existing.roomId);
+
+    const isAuthor = existing.authorId === req.user!.userId;
+    const isChairman = req.user!.role === "CHAIRMAN";
+
+    if (!isAuthor && !isChairman) {
+      throw customError(403, "DELETE_NOT_ALLOWED", "Only author or chairman can delete this message");
+    }
+
+    if (!existing.isDeleted) {
+      await prisma.$transaction(async (tx) => {
+        await tx.chatMessage.update({
+          where: {
+            id: existing.id,
+          },
+          data: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            deletedByUserId: req.user!.userId,
+            isEdited: false,
+            editedAt: null,
+          },
+        });
+
+        await tx.chatMessageMention.deleteMany({
+          where: {
+            tenantId: req.user!.tenantId,
+            messageId: existing.id,
+          },
+        });
+
+        await tx.chatRoom.update({
+          where: {
+            id: existing.roomId,
+          },
+          data: {
+            updatedAt: new Date(),
+          },
+        });
+      });
+    }
+
+    await logAudit({
+      tenantId: req.user!.tenantId,
+      actorId: req.user!.userId,
+      action: isAuthor ? "CHAT_MESSAGE_DELETED_SELF" : "CHAT_MESSAGE_DELETED_BY_CHAIRMAN",
+      entityType: "ChatMessage",
+      entityId: existing.id,
+      requestId: req.requestId,
+      metadata: {
+        roomId: existing.roomId,
+        authorId: existing.authorId,
+      },
+    });
+
+    res.json({ ok: true });
   })
 );
 

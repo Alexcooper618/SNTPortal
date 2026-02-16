@@ -1,15 +1,18 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest, ApiRequestError } from "@/lib/api";
 import { loadSession, SessionState } from "@/lib/session";
-import { ArrowLeft, Maximize2, Minimize2, X } from "lucide-react";
+import { ArrowLeft, CornerUpLeft, Maximize2, Minimize2, Pencil, Trash2, X } from "lucide-react";
 
 type RoomId = string;
+
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 interface ChatUser {
   id: number;
   name: string;
+  phone?: string;
   role: "USER" | "CHAIRMAN";
   ownedPlots?: Array<{ id: number; number: string }>;
 }
@@ -27,6 +30,16 @@ interface ChatMessage {
   id: string;
   body: string;
   createdAt: string;
+  updatedAt: string;
+  isEdited: boolean;
+  editedAt: string | null;
+  isDeleted: boolean;
+  replyTo: {
+    id: string;
+    bodyPreview: string;
+    authorName: string;
+    isDeleted: boolean;
+  } | null;
   author: {
     id: number;
     name: string;
@@ -89,6 +102,23 @@ const roomKindLabel = (room: ChatRoomItem | null) => {
   return room.isPrivate ? "Личный чат" : "Топик";
 };
 
+const mentionAlias = (user: ChatUser) => user.name.trim().replace(/\s+/g, "_");
+
+const renderBodyWithMentions = (body: string) => {
+  const chunks = body.split(/(@[^\s@]{1,64})/g);
+  return chunks.map((chunk, index) => {
+    if (/^@[^\s@]{1,64}$/.test(chunk)) {
+      return (
+        <span key={`${chunk}-${index}`} className="msg-mention">
+          {chunk}
+        </span>
+      );
+    }
+
+    return <span key={`${chunk}-${index}`}>{chunk}</span>;
+  });
+};
+
 type MessengerDrawerProps =
   | {
       variant?: "widget";
@@ -120,8 +150,15 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
   const [newTopicName, setNewTopicName] = useState("");
   const [expanded, setExpanded] = useState(isPage);
   const [view, setView] = useState<"list" | "chat">(isPage ? "chat" : "list");
+  const [actionMessageId, setActionMessageId] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [cursorPosition, setCursorPosition] = useState(0);
+
   const messagesRef = useRef<HTMLDivElement | null>(null);
+  const draftRef = useRef<HTMLTextAreaElement | null>(null);
   const pinnedToBottomRef = useRef(true);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const compact = !isPage && !expanded;
   const showList = !compact || view === "list";
@@ -139,6 +176,45 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     () => rooms.find((r) => r.id === selectedRoomId) ?? null,
     [rooms, selectedRoomId]
   );
+
+  const editingMessage = useMemo(
+    () => messages.find((message) => message.id === editingMessageId) ?? null,
+    [messages, editingMessageId]
+  );
+
+  const mentionContext = useMemo(() => {
+    if (!selectedRoom || selectedRoom.isPrivate) return null;
+
+    const safeCursor = Math.max(0, Math.min(cursorPosition, draft.length));
+    const beforeCursor = draft.slice(0, safeCursor);
+    const match = beforeCursor.match(/(^|\s)@([^\s@]*)$/u);
+    if (!match) return null;
+
+    const query = match[2] ?? "";
+    const start = beforeCursor.length - query.length - 1;
+
+    if (start < 0) return null;
+
+    return {
+      query,
+      start,
+      end: safeCursor,
+    };
+  }, [cursorPosition, draft, selectedRoom]);
+
+  const mentionSuggestions = useMemo(() => {
+    if (!mentionContext) return [];
+    const needle = mentionContext.query.toLowerCase().replace(/_/g, " ").trim();
+
+    return contacts
+      .filter((user) => {
+        if (!needle) return true;
+        const byName = user.name.toLowerCase().includes(needle);
+        const byPhone = (user.phone ?? "").toLowerCase().includes(needle);
+        return byName || byPhone;
+      })
+      .slice(0, 6);
+  }, [contacts, mentionContext]);
 
   const visibleRooms = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -161,6 +237,14 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     if (!term) return contacts;
     return contacts.filter((c) => c.name.toLowerCase().includes(term));
   }, [contacts, search]);
+
+  const resetComposeState = useCallback(() => {
+    setDraft("");
+    setReplyTo(null);
+    setEditingMessageId(null);
+    setActionMessageId(null);
+    setCursorPosition(0);
+  }, []);
 
   const loadRooms = useCallback(async () => {
     const response = await apiRequest<RoomsResponse>("/chat/rooms", {
@@ -225,6 +309,17 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     [authOptions]
   );
 
+  const focusDraft = useCallback((cursor?: number) => {
+    const textarea = draftRef.current;
+    if (!textarea) return;
+
+    textarea.focus();
+    if (typeof cursor === "number") {
+      textarea.setSelectionRange(cursor, cursor);
+      setCursorPosition(cursor);
+    }
+  }, []);
+
   useEffect(() => {
     if (!open) return;
 
@@ -239,6 +334,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     if (!open) return;
     if (!selectedRoomId) return;
 
+    resetComposeState();
     pinnedToBottomRef.current = true;
     setError(null);
     setLoading(true);
@@ -249,7 +345,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
       })
       .catch((err) => setError(normalizeError(err, "Не удалось загрузить сообщения")))
       .finally(() => setLoading(false));
-  }, [open, selectedRoomId, loadMessages, markRead]);
+  }, [open, selectedRoomId, loadMessages, markRead, resetComposeState]);
 
   useEffect(() => {
     if (!open) return;
@@ -263,6 +359,24 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     }
   }, [messages, open, showChat]);
 
+  useEffect(() => {
+    if (!editingMessage) return;
+    setDraft(editingMessage.body);
+    focusDraft(editingMessage.body.length);
+  }, [editingMessage, focusDraft]);
+
+  const applyMention = (user: ChatUser) => {
+    if (!mentionContext) return;
+
+    const alias = mentionAlias(user);
+    const token = `@${alias}`;
+    const nextDraft = `${draft.slice(0, mentionContext.start)}${token} ${draft.slice(mentionContext.end)}`;
+    const nextCursor = mentionContext.start + token.length + 1;
+
+    setDraft(nextDraft);
+    window.requestAnimationFrame(() => focusDraft(nextCursor));
+  };
+
   const send = async (event?: FormEvent) => {
     if (event) event.preventDefault();
     if (!selectedRoomId) return;
@@ -274,18 +388,59 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     setLoading(true);
 
     try {
-      await apiRequest(`/chat/rooms/${selectedRoomId}/messages`, {
-        method: "POST",
-        ...authOptions(),
-        body: {
-          body,
-        },
-      });
+      if (editingMessageId) {
+        await apiRequest(`/chat/messages/${editingMessageId}`, {
+          method: "PATCH",
+          ...authOptions(),
+          body: {
+            body,
+          },
+        });
+      } else {
+        await apiRequest(`/chat/rooms/${selectedRoomId}/messages`, {
+          method: "POST",
+          ...authOptions(),
+          body: {
+            body,
+            replyToMessageId: replyTo?.id,
+          },
+        });
+      }
+
       pinnedToBottomRef.current = true;
-      setDraft("");
+      resetComposeState();
       await Promise.all([loadRooms(), loadMessages(selectedRoomId)]);
     } catch (err) {
-      setError(normalizeError(err, "Не удалось отправить сообщение"));
+      setError(normalizeError(err, editingMessageId ? "Не удалось сохранить сообщение" : "Не удалось отправить сообщение"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    if (!selectedRoomId) return;
+
+    setError(null);
+    setLoading(true);
+    try {
+      await apiRequest(`/chat/messages/${messageId}`, {
+        method: "DELETE",
+        ...authOptions(),
+      });
+
+      if (editingMessageId === messageId) {
+        setEditingMessageId(null);
+        setDraft("");
+      }
+
+      if (replyTo?.id === messageId) {
+        setReplyTo(null);
+      }
+
+      setActionMessageId(null);
+      await Promise.all([loadRooms(), loadMessages(selectedRoomId)]);
+    } catch (err) {
+      setError(normalizeError(err, "Не удалось удалить сообщение"));
     } finally {
       setLoading(false);
     }
@@ -339,6 +494,42 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startReply = (message: ChatMessage) => {
+    setEditingMessageId(null);
+    setReplyTo(message);
+    setActionMessageId(null);
+    focusDraft();
+  };
+
+  const startEdit = (message: ChatMessage) => {
+    setReplyTo(null);
+    setEditingMessageId(message.id);
+    setActionMessageId(null);
+  };
+
+  const cancelDraftMode = () => {
+    setReplyTo(null);
+    setEditingMessageId(null);
+    setDraft("");
+    focusDraft(0);
+  };
+
+  const onMessageLongPressStart = (messageId: string) => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+    }
+
+    longPressRef.current = setTimeout(() => {
+      setActionMessageId((current) => (current === messageId ? null : messageId));
+    }, 420);
+  };
+
+  const onMessageLongPressEnd = () => {
+    if (!longPressRef.current) return;
+    clearTimeout(longPressRef.current);
+    longPressRef.current = null;
   };
 
   if (!open) return null;
@@ -490,7 +681,9 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                         <span className="chat-title">{room.name}</span>
                         <span className="chat-sub">{room.lastMessage ? room.lastMessage.body : "Нет сообщений"}</span>
                       </span>
-                      {room.unreadCount > 0 ? <span className="chat-unread">{room.unreadCount > 99 ? "99+" : room.unreadCount}</span> : null}
+                      {room.unreadCount > 0 ? (
+                        <span className="chat-unread">{room.unreadCount > 99 ? "99+" : room.unreadCount}</span>
+                      ) : null}
                     </button>
                   ))}
 
@@ -511,7 +704,9 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                         <span className="chat-title">{roomLabel(room, session.user.id)}</span>
                         <span className="chat-sub">{room.lastMessage ? room.lastMessage.body : "Нет сообщений"}</span>
                       </span>
-                      {room.unreadCount > 0 ? <span className="chat-unread">{room.unreadCount > 99 ? "99+" : room.unreadCount}</span> : null}
+                      {room.unreadCount > 0 ? (
+                        <span className="chat-unread">{room.unreadCount > 99 ? "99+" : room.unreadCount}</span>
+                      ) : null}
                     </button>
                   ))}
                 </>
@@ -527,6 +722,11 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                 <div
                   className="messenger-messages"
                   ref={messagesRef}
+                  onMouseDown={(event) => {
+                    if (event.target === event.currentTarget) {
+                      setActionMessageId(null);
+                    }
+                  }}
                   onScroll={() => {
                     const el = messagesRef.current;
                     if (!el) return;
@@ -553,17 +753,76 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                       minute: "2-digit",
                     });
                     const timeFull = new Date(message.createdAt).toLocaleString("ru-RU");
+                    const actionOpen = actionMessageId === message.id;
+                    const canReply = !message.isDeleted;
+                    const canEdit =
+                      !message.isDeleted &&
+                      mine &&
+                      Date.now() - new Date(message.createdAt).getTime() <= EDIT_WINDOW_MS;
+                    const canDelete = !message.isDeleted && (mine || session.user.role === "CHAIRMAN");
+
+                    const bubbleBody = (
+                      <>
+                        {message.replyTo ? (
+                          <div className="msg-reply">
+                            <p className="msg-reply-author">{message.replyTo.authorName}</p>
+                            <p className="msg-reply-body">{message.replyTo.bodyPreview}</p>
+                          </div>
+                        ) : null}
+                        {showAuthor ? <p className="msg-author">{message.author.name}</p> : null}
+                        <p className="msg-body">{renderBodyWithMentions(message.body)}</p>
+                        <div className="msg-meta-row">
+                          <p className="msg-time" title={timeFull}>
+                            {timeShort}
+                            {message.isEdited ? " · изм." : ""}
+                          </p>
+                          {(canReply || canEdit || canDelete) && !message.isDeleted ? (
+                            <button
+                              type="button"
+                              className="msg-more"
+                              onClick={() => setActionMessageId((current) => (current === message.id ? null : message.id))}
+                              aria-label="Действия с сообщением"
+                              title="Действия"
+                            >
+                              •••
+                            </button>
+                          ) : null}
+                        </div>
+                        {actionOpen ? (
+                          <div className="msg-actions-menu">
+                            {canReply ? (
+                              <button type="button" onClick={() => startReply(message)}>
+                                <CornerUpLeft size={14} /> Ответить
+                              </button>
+                            ) : null}
+                            {canEdit ? (
+                              <button type="button" onClick={() => startEdit(message)}>
+                                <Pencil size={14} /> Редактировать
+                              </button>
+                            ) : null}
+                            {canDelete ? (
+                              <button type="button" onClick={() => deleteMessage(message.id)}>
+                                <Trash2 size={14} /> Удалить
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </>
+                    );
 
                     return (
                       <div
                         key={message.id}
-                        className={[
-                          "msg-row",
-                          mine ? "mine" : "",
-                          grouped ? "grouped" : "",
-                        ]
+                        className={["msg-row", mine ? "mine" : "", grouped ? "grouped" : ""]
                           .filter(Boolean)
                           .join(" ")}
+                        onTouchStart={() => onMessageLongPressStart(message.id)}
+                        onTouchEnd={onMessageLongPressEnd}
+                        onTouchMove={onMessageLongPressEnd}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setActionMessageId((current) => (current === message.id ? null : message.id));
+                        }}
                       >
                         {!mine && isTopic ? (
                           <div className="msg-stack">
@@ -576,36 +835,18 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                             ) : null}
 
                             <div
-                              className={[
-                                "msg-bubble",
-                                mine ? "mine" : "",
-                                grouped ? "grouped" : "",
-                              ]
-                                .filter(Boolean)
-                                .join(" ")}
+                              className={["msg-bubble", grouped ? "grouped" : ""].filter(Boolean).join(" ")}
                             >
-                              {showAuthor ? <p className="msg-author">{message.author.name}</p> : null}
-                              <p className="msg-body">{message.body}</p>
-                              <p className="msg-time" title={timeFull}>
-                                {timeShort}
-                              </p>
+                              {bubbleBody}
                             </div>
                           </div>
                         ) : (
                           <div
-                            className={[
-                              "msg-bubble",
-                              mine ? "mine" : "",
-                              grouped ? "grouped" : "",
-                            ]
+                            className={["msg-bubble", mine ? "mine" : "", grouped ? "grouped" : ""]
                               .filter(Boolean)
                               .join(" ")}
                           >
-                            {showAuthor ? <p className="msg-author">{message.author.name}</p> : null}
-                            <p className="msg-body">{message.body}</p>
-                            <p className="msg-time" title={timeFull}>
-                              {timeShort}
-                            </p>
+                            {bubbleBody}
                           </div>
                         )}
                       </div>
@@ -614,9 +855,29 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                 </div>
 
                 <form className="messenger-compose" onSubmit={send}>
+                  {replyTo || editingMessageId ? (
+                    <div className="compose-mode">
+                      <p className="compose-mode-title">{editingMessageId ? "Редактирование" : "Ответ"}</p>
+                      <p className="compose-mode-body">
+                        {editingMessageId
+                          ? editingMessage?.body ?? "Сообщение"
+                          : `${replyTo?.author.name ?? ""}: ${replyTo?.body ?? ""}`}
+                      </p>
+                      <button type="button" className="icon-button" onClick={cancelDraftMode} aria-label="Сбросить">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : null}
+
                   <textarea
+                    ref={draftRef}
                     value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => {
+                      setDraft(event.target.value);
+                      setCursorPosition(event.target.selectionStart ?? event.target.value.length);
+                    }}
+                    onClick={(event) => setCursorPosition(event.currentTarget.selectionStart ?? draft.length)}
+                    onKeyUp={(event) => setCursorPosition(event.currentTarget.selectionStart ?? draft.length)}
                     placeholder="Сообщение"
                     rows={2}
                     onKeyDown={(event) => {
@@ -626,8 +887,20 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                       }
                     }}
                   />
+
+                  {mentionContext && mentionSuggestions.length > 0 ? (
+                    <div className="mention-picker">
+                      {mentionSuggestions.map((user) => (
+                        <button key={user.id} type="button" onClick={() => applyMention(user)}>
+                          <span className="mention-name">{user.name}</span>
+                          {user.phone ? <span className="mention-phone">{user.phone}</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+
                   <button className="primary-button" type="submit" disabled={loading}>
-                    Отправить
+                    {editingMessageId ? "Сохранить" : "Отправить"}
                   </button>
                 </form>
               </>

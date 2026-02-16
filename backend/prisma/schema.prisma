@@ -154,6 +154,7 @@ model Tenant {
   forumMessages    ForumMessage[]
   chatRooms        ChatRoom[]
   chatMessages     ChatMessage[]
+  chatMessageMentions ChatMessageMention[]
   chatRoomMembers  ChatRoomMember[]
   chatRoomReads    ChatRoomRead[]
   mapLayers        MapLayer[]
@@ -192,6 +193,8 @@ model User {
   forumThreads      ForumThread[]       @relation("ForumThreadAuthor")
   forumMessages     ForumMessage[]      @relation("ForumMessageAuthor")
   chatMessages      ChatMessage[]       @relation("ChatMessageAuthor")
+  deletedChatMessages ChatMessage[]     @relation("ChatMessageDeletedBy")
+  chatMessageMentions ChatMessageMention[] @relation("ChatMessageMentionedUser")
   chatRoomMemberships ChatRoomMember[]
   chatRoomReads     ChatRoomRead[]
   incidentsCreated  Incident[]          @relation("IncidentCreator")
@@ -544,11 +547,36 @@ model ChatMessage {
   room      ChatRoom  @relation(fields: [roomId], references: [id])
   authorId  Int
   author    User      @relation("ChatMessageAuthor", fields: [authorId], references: [id])
+  replyToMessageId String?
+  replyTo   ChatMessage? @relation("ChatMessageReply", fields: [replyToMessageId], references: [id])
+  replies   ChatMessage[] @relation("ChatMessageReply")
   body      String
+  isEdited  Boolean   @default(false)
+  editedAt  DateTime?
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+  deletedByUserId Int?
+  deletedByUser User? @relation("ChatMessageDeletedBy", fields: [deletedByUserId], references: [id])
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  mentions  ChatMessageMention[]
 
   @@index([tenantId, roomId, createdAt])
+  @@index([replyToMessageId])
+}
+
+model ChatMessageMention {
+  id              Int         @id @default(autoincrement())
+  tenantId        Int
+  tenant          Tenant      @relation(fields: [tenantId], references: [id])
+  messageId       String
+  message         ChatMessage @relation(fields: [messageId], references: [id])
+  mentionedUserId Int
+  mentionedUser   User        @relation("ChatMessageMentionedUser", fields: [mentionedUserId], references: [id])
+  createdAt       DateTime    @default(now())
+
+  @@unique([messageId, mentionedUserId])
+  @@index([tenantId, mentionedUserId])
 }
 
 model MapLayer {

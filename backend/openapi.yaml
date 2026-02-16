@@ -142,6 +142,26 @@ paths:
       security:
         - bearerAuth: []
 
+  /api/v1/chat/rooms/{roomId}/messages:
+    get:
+      summary: List messages in room (with reply/edit/delete metadata)
+      security:
+        - bearerAuth: []
+    post:
+      summary: Send message to room (supports optional replyToMessageId)
+      security:
+        - bearerAuth: []
+
+  /api/v1/chat/messages/{messageId}:
+    patch:
+      summary: Edit own message (15-minute window)
+      security:
+        - bearerAuth: []
+    delete:
+      summary: Soft-delete message (owner or chairman)
+      security:
+        - bearerAuth: []
+
   /api/v1/map/layers:
     get:
       summary: List map layers with objects

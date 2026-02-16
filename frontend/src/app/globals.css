@@ -764,6 +764,7 @@ a {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
 }
 
 .messenger-page {
@@ -1040,21 +1041,90 @@ a {
   white-space: pre-wrap;
 }
 
+.msg-mention {
+  color: #145a49;
+  font-weight: 800;
+}
+
+.msg-reply {
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(31, 107, 90, 0.22);
+  background: rgba(31, 107, 90, 0.08);
+}
+
+.msg-reply-author {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  color: #145a49;
+}
+
+.msg-reply-body {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #284756;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.msg-meta-row {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .msg-time {
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 11px;
   color: var(--muted);
-  align-self: flex-end;
+}
+
+.msg-more {
+  border: 1px solid rgba(216, 201, 184, 0.9);
+  background: rgba(255, 255, 255, 0.8);
+  color: #476170;
+  border-radius: 999px;
+  line-height: 1;
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.msg-actions-menu {
+  margin-top: 6px;
+  display: grid;
+  gap: 4px;
+}
+
+.msg-actions-menu button {
+  border: 1px solid rgba(216, 201, 184, 0.9);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #1c3645;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  cursor: pointer;
 }
 
 .messenger-compose {
   padding: 12px 14px;
+  padding-bottom: max(12px, calc(12px + env(safe-area-inset-bottom)));
   border-top: 1px solid var(--line);
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
   align-items: end;
   background: rgba(255, 255, 255, 0.7);
+  position: relative;
 }
 
 .messenger-compose textarea {
@@ -1064,6 +1134,76 @@ a {
   padding: 10px 10px;
   resize: none;
   font-family: var(--font-body), "Segoe UI", sans-serif;
+}
+
+.compose-mode {
+  grid-column: 1 / -1;
+  border: 1px solid rgba(216, 201, 184, 0.85);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.88);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.compose-mode-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  color: #145a49;
+}
+
+.compose-mode-body {
+  margin: 0;
+  font-size: 12px;
+  color: #355062;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-picker {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: calc(100% + 8px);
+  border: 1px solid rgba(216, 201, 184, 0.95);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 24px rgba(16, 34, 45, 0.14);
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  max-height: 210px;
+  overflow: auto;
+}
+
+.mention-picker button {
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  padding: 6px 8px;
+  display: grid;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.mention-picker button:hover {
+  background: rgba(31, 107, 90, 0.1);
+}
+
+.mention-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b3745;
+}
+
+.mention-phone {
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .messenger-empty {
@@ -1262,7 +1402,19 @@ a {
   .messenger-side {
     border-right: none;
     border-bottom: 1px solid var(--line);
+    max-height: none;
+    height: 100%;
+  }
+
+  .messenger-drawer.is-widget.is-expanded .messenger-side,
+  .messenger-drawer.is-page .messenger-side {
     max-height: 42vh;
+    height: auto;
+  }
+
+  .messenger-drawer.is-widget.is-compact .messenger-side {
+    max-height: none;
+    height: 100%;
   }
 }
 
