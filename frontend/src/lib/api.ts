@@ -1,5 +1,10 @@
-const FALLBACK_API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1";
+const FALLBACK_API_BASE_URL = (() => {
+  const candidate = process.env.NEXT_PUBLIC_API_URL;
+  if (typeof candidate === "string" && candidate.trim().length > 0) {
+    return candidate.trim().replace(/\/$/, "");
+  }
+  return "http://localhost:3000/api/v1";
+})();
 
 declare global {
   interface Window {
@@ -13,6 +18,16 @@ export const getApiBaseUrl = (): string => {
       typeof window.__SNT_API_URL__ === "string" ? window.__SNT_API_URL__.trim() : "";
     if (candidate.length > 0) {
       return candidate.endsWith("/") ? candidate.slice(0, -1) : candidate;
+    }
+
+    // Default production mapping: app.<domain> -> api.<domain>
+    // Keeps the web bundle working even if build-time env wasn't injected.
+    const host = window.location.hostname;
+    if (host.startsWith("app.")) {
+      return `${window.location.protocol}//api.${host.slice(4)}/api/v1`;
+    }
+    if (host === "localhost") {
+      return "http://localhost:3000/api/v1";
     }
   }
   return FALLBACK_API_BASE_URL;
