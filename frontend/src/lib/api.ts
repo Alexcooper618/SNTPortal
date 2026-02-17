@@ -1,5 +1,22 @@
-export const API_BASE_URL =
+const FALLBACK_API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1";
+
+declare global {
+  interface Window {
+    __SNT_API_URL__?: string;
+  }
+}
+
+export const getApiBaseUrl = (): string => {
+  if (typeof window !== "undefined") {
+    const candidate =
+      typeof window.__SNT_API_URL__ === "string" ? window.__SNT_API_URL__.trim() : "";
+    if (candidate.length > 0) {
+      return candidate.endsWith("/") ? candidate.slice(0, -1) : candidate;
+    }
+  }
+  return FALLBACK_API_BASE_URL;
+};
 
 export interface ApiErrorPayload {
   code?: string;
@@ -106,7 +123,7 @@ const parseApiError = async (response: Response): Promise<ApiRequestError> => {
 };
 
 const doFetch = async (path: string, options: RequestOptions): Promise<Response> => {
-  return fetch(`${API_BASE_URL}${path}`, {
+  return fetch(`${getApiBaseUrl()}${path}`, {
     method: options.method ?? "GET",
     headers: {
       "Content-Type": "application/json",

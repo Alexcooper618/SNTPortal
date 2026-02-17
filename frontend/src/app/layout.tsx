@@ -16,8 +16,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const runtimeApiUrl = process.env.SNT_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
+
   return (
     <html lang="ru">
+      <head>
+        <script
+          // Provide runtime API base URL for client bundles (avoids rebuilds for env changes).
+          dangerouslySetInnerHTML={{
+            __html: `window.__SNT_API_URL__=${JSON.stringify(runtimeApiUrl)};`,
+          }}
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
