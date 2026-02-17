@@ -12,10 +12,7 @@ export default function HomePage() {
 
         <div className="auth-actions">
           <Link href="/login" className="primary-button">
-            Войти по OTP
-          </Link>
-          <Link href="/register-snt" className="secondary-button">
-            Регистрация СНТ
+            Войти
           </Link>
         </div>
       </section>

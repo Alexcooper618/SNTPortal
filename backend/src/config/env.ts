@@ -15,12 +15,19 @@ const toNumber = (value: string, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const toBoolean = (value: string | undefined, fallback: boolean): boolean => {
+  if (value === undefined) return fallback;
+  return value.trim().toLowerCase() === "true";
+};
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: toNumber(process.env.PORT ?? "3000", 3000),
   databaseUrl: getEnv("DATABASE_URL", "postgresql://snt_user:snt_password@localhost:5432/snt_db?schema=public"),
   corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3001",
   defaultTenantSlug: process.env.DEFAULT_TENANT_SLUG ?? "rassvet",
+  authEnableOtp: toBoolean(process.env.AUTH_ENABLE_OTP, false),
+  authEnableSntRegistration: toBoolean(process.env.AUTH_ENABLE_SNT_REGISTRATION, false),
   jwtAccessSecret: getEnv("JWT_ACCESS_SECRET", process.env.JWT_SECRET ?? "dev-access-secret"),
   jwtRefreshSecret: getEnv("JWT_REFRESH_SECRET", process.env.JWT_SECRET ?? "dev-refresh-secret"),
   accessTokenTtlMinutes: toNumber(process.env.ACCESS_TOKEN_TTL_MINUTES ?? "30", 30),

@@ -15,13 +15,13 @@ Set API URL via:
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
+NEXT_PUBLIC_DEFAULT_TENANT_SLUG=rassvet
 ```
 
 ## Main routes
 
-- `/login` OTP auth
+- `/login` phone + password auth
 - `/change-password` forced password rotation
-- `/register-snt` tenant + chairman bootstrap
 - `/dashboard` summary
 - `/payments` billing and online payment start
 - `/news` content feed
@@ -35,4 +35,5 @@ NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
 ## Closed access
 
 - New users are created by chairman from `/admin` with temporary password.
-- Login supports two modes: OTP and phone/password.
+- Login currently supports phone/password only.
+- OTP and self-registration are temporarily disabled.

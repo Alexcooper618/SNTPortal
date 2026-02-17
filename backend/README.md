@@ -15,9 +15,9 @@ Default API root: `http://localhost:3000/api/v1`
 ## Auth model
 
 - Closed registry: users must be pre-created by chairman.
-- Dual login modes:
-  - OTP (`/auth/request-otp` + `/auth/verify-otp`)
-  - Phone + password (`/auth/login`)
+- Current login mode: phone + password (`/auth/login`).
+- OTP endpoints (`/auth/request-otp`, `/auth/verify-otp`) are temporarily disabled.
+- Self-registration endpoint (`/auth/register-snt`) is temporarily disabled.
 - Chairman creates resident via `POST /users` with `temporaryPassword`.
 - First login with temporary password returns `mustChangePassword=true`; user must call `/auth/change-password`.
 

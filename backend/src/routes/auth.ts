@@ -3,7 +3,9 @@ import { OtpPurpose } from "@prisma/client";
 import { asyncHandler } from "../middlewares/async-handler";
 import { requireAuth } from "../middlewares/auth";
 import { createRateLimit } from "../middlewares/rate-limit";
+import { env } from "../config/env";
 import { logAudit } from "../lib/audit";
+import { customError, notFound } from "../lib/errors";
 import { getTenantBySlug, resolveTenantSlug } from "../lib/tenant";
 import { assertString, normalizePhone } from "../lib/validators";
 import { sanitizeUser } from "../lib/user-safe";
@@ -26,6 +28,10 @@ const passwordRateLimit = createRateLimit(15, 60_000);
 router.post(
   "/register-snt",
   asyncHandler(async (req, res) => {
+    if (!env.authEnableSntRegistration) {
+      throw notFound("Route not found");
+    }
+
     const tenantName = assertString(req.body.tenantName ?? req.body.sntName, "tenantName");
     const tenantSlug = assertString(req.body.tenantSlug, "tenantSlug").toLowerCase();
     const location = typeof req.body.location === "string" ? req.body.location.trim() : undefined;
@@ -65,6 +71,10 @@ router.post(
   "/request-otp",
   otpRateLimit,
   asyncHandler(async (req, res) => {
+    if (!env.authEnableOtp) {
+      throw customError(410, "FEATURE_DISABLED", "OTP login is temporarily disabled");
+    }
+
     const tenantSlug = resolveTenantSlug(req);
     const tenant = await getTenantBySlug(tenantSlug);
     const phone = normalizePhone(assertString(req.body.phone, "phone"));
@@ -90,6 +100,10 @@ router.post(
   "/verify-otp",
   otpRateLimit,
   asyncHandler(async (req, res) => {
+    if (!env.authEnableOtp) {
+      throw customError(410, "FEATURE_DISABLED", "OTP login is temporarily disabled");
+    }
+
     const tenantSlug = resolveTenantSlug(req);
     const tenant = await getTenantBySlug(tenantSlug);
     const phone = normalizePhone(assertString(req.body.phone, "phone"));

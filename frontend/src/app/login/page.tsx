@@ -1,14 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest, ApiRequestError } from "@/lib/api";
 import { saveSession } from "@/lib/session";
-
-interface RequestOtpResponse {
-  ok: boolean;
-  debugCode?: string;
-}
 
 interface AuthResponse {
   user: {
@@ -23,19 +18,33 @@ interface AuthResponse {
   mustChangePassword: boolean;
 }
 
-type Mode = "otp" | "password";
+const DEFAULT_TENANT_SLUG =
+  process.env.NEXT_PUBLIC_DEFAULT_TENANT_SLUG ?? "rassvet";
+
+const COUNTRY_CODES = [
+  { value: "+7", label: "Россия / Казахстан (+7)" },
+  { value: "+374", label: "Армения (+374)" },
+  { value: "+375", label: "Беларусь (+375)" },
+  { value: "+994", label: "Азербайджан (+994)" },
+  { value: "+992", label: "Таджикистан (+992)" },
+  { value: "+993", label: "Туркменистан (+993)" },
+  { value: "+996", label: "Кыргызстан (+996)" },
+  { value: "+998", label: "Узбекистан (+998)" },
+  { value: "+995", label: "Грузия (+995)" },
+] as const;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("otp");
-  const [tenantSlug, setTenantSlug] = useState("rassvet");
-  const [phone, setPhone] = useState("+79990001122");
-  const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [step, setStep] = useState<"request" | "verify">("request");
-  const [debugCode, setDebugCode] = useState<string | null>(null);
+  const [countryCode, setCountryCode] = useState<string>("+7");
+  const [phoneLocal, setPhoneLocal] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const fullPhone = useMemo(
+    () => `${countryCode}${phoneLocal}`,
+    [countryCode, phoneLocal]
+  );
 
   const normalizeError = (requestError: unknown, fallback: string) => {
     if (!(requestError instanceof ApiRequestError)) {
@@ -53,72 +62,6 @@ export default function LoginPage() {
     return requestError.message;
   };
 
-  const persistSession = (response: AuthResponse) => {
-    saveSession({
-      tenantSlug,
-      accessToken: response.accessToken,
-      refreshToken: response.refreshToken,
-      user: {
-        ...response.user,
-        mustChangePassword: response.mustChangePassword,
-      },
-    });
-
-    if (response.mustChangePassword) {
-      router.replace("/change-password");
-      return;
-    }
-
-    router.replace("/dashboard");
-  };
-
-  const requestOtp = async (event: FormEvent) => {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiRequest<RequestOtpResponse>("/auth/request-otp", {
-        method: "POST",
-        tenantSlug,
-        body: {
-          phone,
-          purpose: "LOGIN",
-        },
-      });
-
-      setDebugCode(response.debugCode ?? null);
-      setStep("verify");
-    } catch (requestError) {
-      setError(normalizeError(requestError, "Ошибка запроса OTP"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyOtp = async (event: FormEvent) => {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await apiRequest<AuthResponse>("/auth/verify-otp", {
-        method: "POST",
-        tenantSlug,
-        body: {
-          phone,
-          code,
-        },
-      });
-
-      persistSession(response);
-    } catch (requestError) {
-      setError(normalizeError(requestError, "Ошибка подтверждения OTP"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loginWithPassword = async (event: FormEvent) => {
     event.preventDefault();
     setLoading(true);
@@ -127,14 +70,29 @@ export default function LoginPage() {
     try {
       const response = await apiRequest<AuthResponse>("/auth/login", {
         method: "POST",
-        tenantSlug,
+        tenantSlug: DEFAULT_TENANT_SLUG,
         body: {
-          phone,
+          phone: fullPhone,
           password,
         },
       });
 
-      persistSession(response);
+      saveSession({
+        tenantSlug: DEFAULT_TENANT_SLUG,
+        accessToken: response.accessToken,
+        refreshToken: response.refreshToken,
+        user: {
+          ...response.user,
+          mustChangePassword: response.mustChangePassword,
+        },
+      });
+
+      if (response.mustChangePassword) {
+        router.replace("/change-password");
+        return;
+      }
+
+      router.replace("/dashboard");
     } catch (requestError) {
       setError(normalizeError(requestError, "Ошибка входа"));
     } finally {
@@ -148,98 +106,51 @@ export default function LoginPage() {
         <h1>Вход в портал</h1>
         <p>Доступ только для пользователей, добавленных председателем.</p>
 
-        <div className="auth-actions">
-          <button
-            type="button"
-            className={mode === "otp" ? "primary-button" : "secondary-button"}
-            onClick={() => {
-              setMode("otp");
-              setStep("request");
-              setError(null);
-            }}
-          >
-            OTP
-          </button>
-          <button
-            type="button"
-            className={mode === "password" ? "primary-button" : "secondary-button"}
-            onClick={() => {
-              setMode("password");
-              setError(null);
-            }}
-          >
-            Логин/пароль
-          </button>
-        </div>
-
         {error ? <div className="error">{error}</div> : null}
-        {debugCode ? <div className="notice">Dev OTP: {debugCode}</div> : null}
 
-        {mode === "otp" ? (
-          step === "request" ? (
-            <form className="auth-form" onSubmit={requestOtp}>
-              <label>
-                Tenant slug
-                <input value={tenantSlug} onChange={(event) => setTenantSlug(event.target.value)} />
-              </label>
-
-              <label>
-                Телефон
-                <input value={phone} onChange={(event) => setPhone(event.target.value)} />
-              </label>
-
-              <button type="submit" className="primary-button" disabled={loading}>
-                {loading ? "Отправка..." : "Запросить OTP"}
-              </button>
-            </form>
-          ) : (
-            <form className="auth-form" onSubmit={verifyOtp}>
-              <label>
-                Код
-                <input value={code} onChange={(event) => setCode(event.target.value)} />
-              </label>
-
-              <button type="submit" className="primary-button" disabled={loading}>
-                {loading ? "Проверка..." : "Подтвердить"}
-              </button>
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => {
-                  setStep("request");
-                  setCode("");
-                }}
+        <form className="auth-form" onSubmit={loginWithPassword}>
+          <label>
+            Телефон
+            <div className="inline-form-fields">
+              <select
+                value={countryCode}
+                onChange={(event) => setCountryCode(event.target.value)}
               >
-                Назад
-              </button>
-            </form>
-          )
-        ) : (
-          <form className="auth-form" onSubmit={loginWithPassword}>
-            <label>
-              Tenant slug
-              <input value={tenantSlug} onChange={(event) => setTenantSlug(event.target.value)} />
-            </label>
-
-            <label>
-              Телефон
-              <input value={phone} onChange={(event) => setPhone(event.target.value)} />
-            </label>
-
-            <label>
-              Пароль
+                {COUNTRY_CODES.map((code) => (
+                  <option key={code.value} value={code.value}>
+                    {code.label}
+                  </option>
+                ))}
+              </select>
               <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                value={phoneLocal}
+                inputMode="numeric"
+                placeholder="9012345678"
+                maxLength={12}
+                onChange={(event) =>
+                  setPhoneLocal(event.target.value.replace(/\D/g, "").slice(0, 12))
+                }
               />
-            </label>
+            </div>
+          </label>
 
-            <button type="submit" className="primary-button" disabled={loading}>
-              {loading ? "Вход..." : "Войти"}
-            </button>
-          </form>
-        )}
+          <label>
+            Пароль
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={loading || phoneLocal.length === 0 || password.length === 0}
+          >
+            {loading ? "Вход..." : "Войти"}
+          </button>
+        </form>
       </section>
     </main>
   );
