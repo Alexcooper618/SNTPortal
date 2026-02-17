@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { OtpPurpose } from "@prisma/client";
+import { OtpPurpose, TenantStatus } from "@prisma/client";
 import { asyncHandler } from "../middlewares/async-handler";
 import { requireAuth } from "../middlewares/auth";
 import { createRateLimit } from "../middlewares/rate-limit";
 import { env } from "../config/env";
+import { prisma } from "../db";
 import { logAudit } from "../lib/audit";
 import { customError, notFound } from "../lib/errors";
 import { getTenantBySlug, resolveTenantSlug } from "../lib/tenant";
@@ -24,6 +25,44 @@ const router = Router();
 
 const otpRateLimit = createRateLimit(8, 60_000);
 const passwordRateLimit = createRateLimit(15, 60_000);
+const tenantsRateLimit = createRateLimit(60, 60_000);
+
+router.get(
+  "/tenants",
+  tenantsRateLimit,
+  asyncHandler(async (req, res) => {
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+
+    const limitRaw = typeof req.query.limit === "string" ? Number(req.query.limit) : 100;
+    const offsetRaw = typeof req.query.offset === "string" ? Number(req.query.offset) : 0;
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.round(limitRaw), 1), 500) : 100;
+    const offset = Number.isFinite(offsetRaw) ? Math.max(Math.round(offsetRaw), 0) : 0;
+
+    const tenants = await prisma.tenant.findMany({
+      where: {
+        status: TenantStatus.ACTIVE,
+        ...(search.length > 0
+          ? {
+              OR: [
+                { name: { contains: search, mode: "insensitive" } },
+                { slug: { contains: search, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        slug: true,
+        name: true,
+        location: true,
+      },
+      orderBy: { name: "asc" },
+      take: limit,
+      skip: offset,
+    });
+
+    res.json({ items: tenants });
+  })
+);
 
 router.post(
   "/register-snt",

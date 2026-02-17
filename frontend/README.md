@@ -15,7 +15,6 @@ Set API URL via:
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1
-NEXT_PUBLIC_DEFAULT_TENANT_SLUG=rassvet
 ```
 
 ## Main routes
