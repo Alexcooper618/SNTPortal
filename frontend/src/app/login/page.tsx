@@ -11,7 +11,7 @@ interface AuthResponse {
     tenantId: number;
     name: string;
     phone: string;
-    role: "USER" | "CHAIRMAN";
+    role: "USER" | "CHAIRMAN" | "ADMIN";
   };
   accessToken: string;
   refreshToken: string;
@@ -139,6 +139,11 @@ export default function LoginPage() {
 
       if (response.mustChangePassword) {
         router.replace("/change-password");
+        return;
+      }
+
+      if (response.user.role === "ADMIN") {
+        router.replace("/platform");
         return;
       }
 
