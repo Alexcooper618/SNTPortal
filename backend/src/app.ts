@@ -6,6 +6,7 @@ import { env } from "./config/env";
 import { requestContext } from "./middlewares/request-context";
 import { createRateLimit } from "./middlewares/rate-limit";
 import { errorHandler, notFoundHandler } from "./middlewares/error-handler";
+import { ensureMediaStorageReady } from "./lib/media-storage";
 
 export const app = express();
 
@@ -28,6 +29,8 @@ app.use(
 app.use(express.json());
 app.use(requestContext);
 app.use(createRateLimit(120, 60_000));
+ensureMediaStorageReady();
+app.use("/uploads", express.static(env.mediaUploadDir));
 
 app.get("/health", (_req: Request, res: Response) => {
   res.json({

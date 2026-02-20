@@ -45,12 +45,15 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-https://app.snt-portal.ru}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.snt-portal.ru/api/v1}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      MEDIA_UPLOAD_DIR: ${MEDIA_UPLOAD_DIR:-/app/uploads}
       DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-rassvet}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
       PLATFORM_ADMIN_PHONE: ${PLATFORM_ADMIN_PHONE:-}
       PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
       PLATFORM_ADMIN_NAME: ${PLATFORM_ADMIN_NAME:-Администратор}
+    volumes:
+      - api_uploads:/app/uploads
     labels:
       - traefik.enable=true
       - traefik.http.routers.snt-api.entrypoints=websecure
@@ -81,3 +84,4 @@ services:
 volumes:
   postgres_data:
   letsencrypt:
+  api_uploads:

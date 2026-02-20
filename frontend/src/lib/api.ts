@@ -55,7 +55,7 @@ export interface RequestOptions {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   token?: string;
   tenantSlug?: string;
-  body?: unknown;
+  body?: unknown | FormData;
 }
 
 interface RefreshResponse {
@@ -138,14 +138,22 @@ const parseApiError = async (response: Response): Promise<ApiRequestError> => {
 };
 
 const doFetch = async (path: string, options: RequestOptions): Promise<Response> => {
+  const isFormData =
+    typeof FormData !== "undefined" && options.body !== undefined && options.body instanceof FormData;
+  let requestBody: BodyInit | undefined;
+
+  if (options.body !== undefined) {
+    requestBody = isFormData ? (options.body as FormData) : JSON.stringify(options.body);
+  }
+
   return fetch(`${getApiBaseUrl()}${path}`, {
     method: options.method ?? "GET",
     headers: {
-      "Content-Type": "application/json",
+      ...(!isFormData ? { "Content-Type": "application/json" } : {}),
       ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
       ...(options.tenantSlug ? { "x-tenant-slug": options.tenantSlug } : {}),
     },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: requestBody,
     cache: "no-store",
   });
 };

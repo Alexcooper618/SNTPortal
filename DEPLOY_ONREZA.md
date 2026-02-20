@@ -14,6 +14,7 @@
 ### Env vars (минимум)
 - `NODE_ENV=production`
 - `DATABASE_URL=...` (PostgreSQL)
+- `MEDIA_UPLOAD_DIR=/app/uploads`
 - `JWT_ACCESS_SECRET=...` (длинная случайная строка)
 - `JWT_REFRESH_SECRET=...` (длинная случайная строка)
 - `CORS_ORIGIN=https://<your-web-domain>` (можно несколько через запятую, либо `*` временно)
@@ -61,6 +62,10 @@ docker compose logs --tail=200 api
 ```bash
 docker compose exec api npm run migrate:deploy
 ```
+
+6. Постоянное хранилище медиа:
+   - backend хранит фото/видео из соц-ленты в `MEDIA_UPLOAD_DIR` (по умолчанию `/app/uploads`);
+   - для Docker Compose уже добавлен volume `api_uploads`, его удалять нельзя при redeploy.
 
 5. Проверка:
 

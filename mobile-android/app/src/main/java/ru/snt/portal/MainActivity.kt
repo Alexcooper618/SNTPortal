@@ -1,6 +1,7 @@
 package ru.snt.portal
 
 import android.Manifest
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,6 +17,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
+import android.webkit.ValueCallback
 import android.webkit.WebView
 import android.widget.Button
 import android.widget.LinearLayout
@@ -39,6 +41,7 @@ class MainActivity : AppCompatActivity() {
 
     private var pendingGeoOrigin: String? = null
     private var pendingGeoCallback: GeolocationPermissions.Callback? = null
+    private var pendingFileChooserCallback: ValueCallback<Array<Uri>>? = null
 
     private val locationPermissionRequester =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -49,6 +52,27 @@ class MainActivity : AppCompatActivity() {
             }
             pendingGeoOrigin = null
             pendingGeoCallback = null
+        }
+
+    private val filePickerLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val callback = pendingFileChooserCallback
+            pendingFileChooserCallback = null
+
+            if (callback == null) return@registerForActivityResult
+            if (result.resultCode != Activity.RESULT_OK) {
+                callback.onReceiveValue(null)
+                return@registerForActivityResult
+            }
+
+            val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
+            if (uris != null) {
+                callback.onReceiveValue(uris)
+                return@registerForActivityResult
+            }
+
+            val dataUri = result.data?.data
+            callback.onReceiveValue(dataUri?.let { arrayOf(it) })
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -112,6 +136,12 @@ class MainActivity : AppCompatActivity() {
         configureSystemBars()
     }
 
+    override fun onDestroy() {
+        pendingFileChooserCallback?.onReceiveValue(null)
+        pendingFileChooserCallback = null
+        super.onDestroy()
+    }
+
     @Suppress("SetJavaScriptEnabled")
     private fun configureWebView() {
         CookieManager.getInstance().apply {
@@ -154,6 +184,38 @@ class MainActivity : AppCompatActivity() {
                 pendingGeoOrigin = origin
                 pendingGeoCallback = callback
                 locationPermissionRequester.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+
+            override fun onShowFileChooser(
+                webView: WebView?,
+                filePathCallback: ValueCallback<Array<Uri>>?,
+                fileChooserParams: FileChooserParams?
+            ): Boolean {
+                if (filePathCallback == null) return false
+
+                pendingFileChooserCallback?.onReceiveValue(null)
+                pendingFileChooserCallback = filePathCallback
+
+                val pickIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
+                    putExtra(
+                        Intent.EXTRA_ALLOW_MULTIPLE,
+                        fileChooserParams?.mode == FileChooserParams.MODE_OPEN_MULTIPLE
+                    )
+                }
+
+                return try {
+                    filePickerLauncher.launch(
+                        Intent.createChooser(pickIntent, getString(R.string.app_name))
+                    )
+                    true
+                } catch (_: ActivityNotFoundException) {
+                    pendingFileChooserCallback?.onReceiveValue(null)
+                    pendingFileChooserCallback = null
+                    false
+                }
             }
         }
 

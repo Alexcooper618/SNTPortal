@@ -25,6 +25,7 @@ export const env = {
   port: toNumber(process.env.PORT ?? "3000", 3000),
   databaseUrl: getEnv("DATABASE_URL", "postgresql://snt_user:snt_password@localhost:5432/snt_db?schema=public"),
   corsOrigin: process.env.CORS_ORIGIN ?? "http://localhost:3001",
+  mediaUploadDir: process.env.MEDIA_UPLOAD_DIR ?? "/app/uploads",
   defaultTenantSlug: process.env.DEFAULT_TENANT_SLUG ?? "rassvet",
   platformAdminPhone: process.env.PLATFORM_ADMIN_PHONE,
   platformAdminPassword: process.env.PLATFORM_ADMIN_PASSWORD,

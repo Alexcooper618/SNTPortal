@@ -68,6 +68,11 @@ enum NewsStatus {
   ARCHIVED
 }
 
+enum NewsMediaType {
+  IMAGE
+  VIDEO
+}
+
 enum DocumentVisibility {
   RESIDENTS
   CHAIRMAN_ONLY
@@ -153,6 +158,10 @@ model Tenant {
   webhookEvents    PaymentWebhookEvent[]
   ledgerEntries    LedgerEntry[]
   newsPosts        NewsPost[]
+  newsPostLikes    NewsPostLike[]
+  newsComments     NewsComment[]
+  newsStories      NewsStory[]
+  newsStoryViews   NewsStoryView[]
   documents        Document[]
   documentAccesses DocumentAccess[]
   forumThreads     ForumThread[]
@@ -194,6 +203,10 @@ model User {
   invoices          Invoice[]
   initiatedPayments Payment[]           @relation("PaymentInitiator")
   newsPosts         NewsPost[]          @relation("NewsAuthor")
+  newsPostLikes     NewsPostLike[]
+  newsComments      NewsComment[]       @relation("NewsCommentAuthor")
+  newsStories       NewsStory[]         @relation("NewsStoryAuthor")
+  viewedNewsStories NewsStoryView[]     @relation("NewsStoryViewer")
   documents         Document[]          @relation("DocumentUploader")
   forumThreads      ForumThread[]       @relation("ForumThreadAuthor")
   forumMessages     ForumMessage[]      @relation("ForumMessageAuthor")
@@ -421,22 +434,95 @@ model NewsPost {
   author      User       @relation("NewsAuthor", fields: [authorId], references: [id])
   title       String
   body        String
-  status      NewsStatus @default(DRAFT)
+  status      NewsStatus @default(PUBLISHED)
   publishedAt DateTime?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   attachments NewsAttachment[]
+  likes       NewsPostLike[]
+  comments    NewsComment[]
 
   @@index([tenantId, status, publishedAt])
 }
 
 model NewsAttachment {
-  id        Int      @id @default(autoincrement())
+  id        Int           @id @default(autoincrement())
   postId    Int
-  post      NewsPost @relation(fields: [postId], references: [id])
+  post      NewsPost      @relation(fields: [postId], references: [id])
   fileName  String
   fileUrl   String
+  mediaType NewsMediaType
+  mimeType  String
+  sizeBytes Int
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+
+  @@index([postId, sortOrder])
+}
+
+model NewsPostLike {
+  id        String   @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  postId    Int
+  post      NewsPost @relation(fields: [postId], references: [id])
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@index([tenantId, postId, createdAt])
+  @@index([tenantId, userId, createdAt])
+}
+
+model NewsComment {
+  id        String   @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  postId    Int
+  post      NewsPost @relation(fields: [postId], references: [id])
+  authorId  Int
+  author    User     @relation("NewsCommentAuthor", fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, postId, createdAt])
+  @@index([tenantId, authorId, createdAt])
+}
+
+model NewsStory {
+  id        String        @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  authorId  Int
+  author    User          @relation("NewsStoryAuthor", fields: [authorId], references: [id])
+  caption   String?
+  mediaType NewsMediaType
+  fileName  String
+  fileUrl   String
+  mimeType  String
+  sizeBytes Int
+  expiresAt DateTime
+  createdAt DateTime      @default(now())
+  views     NewsStoryView[]
+
+  @@index([tenantId, expiresAt, createdAt])
+  @@index([tenantId, authorId, createdAt])
+}
+
+model NewsStoryView {
+  id       String    @id @default(cuid())
+  tenantId Int
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  storyId  String
+  story    NewsStory @relation(fields: [storyId], references: [id])
+  userId   Int
+  user     User      @relation("NewsStoryViewer", fields: [userId], references: [id])
+  viewedAt DateTime  @default(now())
+
+  @@unique([storyId, userId])
+  @@index([tenantId, userId, viewedAt])
 }
 
 model Document {
