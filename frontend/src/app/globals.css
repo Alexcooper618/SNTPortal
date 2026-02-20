@@ -139,6 +139,12 @@ a {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  min-height: 0;
+}
+
+.portal-main.forum-main {
+  padding: 0;
+  gap: 0;
 }
 
 .portal-header {
@@ -187,6 +193,13 @@ a {
 .portal-content {
   display: grid;
   gap: 14px;
+  min-height: 0;
+}
+
+.portal-content.forum-content {
+  gap: 0;
+  height: 100%;
+  min-height: 0;
 }
 
 .grid-2,
@@ -844,11 +857,13 @@ a {
 .messenger-page {
   display: flex;
   justify-content: center;
+  min-height: 0;
+  height: 100%;
 }
 
 .messenger-drawer.is-page {
   width: 100%;
-  height: min(860px, 78vh);
+  height: 100%;
   max-width: 1120px;
 }
 
@@ -1406,6 +1421,10 @@ a {
     padding: 8px 8px 92px;
   }
 
+  .portal-bg.forum-bg {
+    padding: 0;
+  }
+
   .mobile-nav {
     position: fixed;
     left: 8px;
@@ -1479,6 +1498,23 @@ a {
     padding: 12px;
   }
 
+  .portal-shell.forum-shell {
+    min-height: 100dvh;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    background: #f4f6f9;
+  }
+
+  .portal-main.forum-main {
+    padding: 0;
+    gap: 0;
+  }
+
+  .portal-content.forum-content {
+    height: 100%;
+  }
+
   .portal-header {
     flex-direction: column;
     align-items: flex-start;
@@ -1536,6 +1572,21 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .messenger-page {
+    min-height: 100%;
+    height: 100%;
+  }
+
+  .messenger-drawer.is-page {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    background: #f4f7fb;
+  }
+
   .msg-bubble {
     max-width: min(560px, 78%);
   }
@@ -1547,15 +1598,76 @@ a {
     height: 100%;
   }
 
-  .messenger-drawer.is-widget.is-expanded .messenger-side,
-  .messenger-drawer.is-page .messenger-side {
+  .messenger-drawer.is-widget.is-expanded .messenger-side {
     max-height: 42vh;
     height: auto;
+  }
+
+  .messenger-drawer.is-page .messenger-side {
+    max-height: none;
+    height: 100%;
+    border-bottom: none;
   }
 
   .messenger-drawer.is-widget.is-compact .messenger-side {
     max-height: none;
     height: 100%;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-head {
+    padding: 12px 12px 10px;
+    background: #fff;
+    border-bottom: 1px solid #dde5ee;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-body {
+    display: block;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-side-top {
+    background: #fff;
+    border-bottom: 1px solid #e6ebf1;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-list {
+    background: #fff;
+    padding: 0;
+    gap: 0;
+  }
+
+  .messenger-drawer.is-page.is-compact .chat-row {
+    border: none;
+    border-bottom: 1px solid #ecf0f4;
+    border-radius: 0;
+    background: transparent;
+    padding: 10px 12px;
+  }
+
+  .messenger-drawer.is-page.is-compact .chat-row:hover {
+    background: #f3f7fb;
+  }
+
+  .messenger-drawer.is-page.is-compact .chat-row.active {
+    border-color: #ecf0f4;
+    background: #e9f2ef;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-section {
+    margin: 0;
+    padding: 10px 12px 6px;
+    background: #fff;
+    border-top: 1px solid #eef2f6;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-messages {
+    padding: 10px 12px;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-compose {
+    background: #fff;
+    border-top: 1px solid #dde5ee;
   }
 
   .inline-form-fields {

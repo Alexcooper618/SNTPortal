@@ -59,6 +59,7 @@ export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => 
   const router = useRouter();
   const { ready, session, logout } = useAuth(true);
   const [messengerOpen, setMessengerOpen] = useState(false);
+  const isForumPage = pathname === "/forum";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -85,8 +86,8 @@ export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => 
     session.user.role === "ADMIN" ? adminNav : session.user.role === "CHAIRMAN" ? chairmanNav : residentNav;
 
   return (
-    <div className="portal-bg">
-      <div className="portal-shell">
+    <div className={isForumPage ? "portal-bg forum-bg" : "portal-bg"}>
+      <div className={isForumPage ? "portal-shell forum-shell" : "portal-shell"}>
         <aside className="portal-side">
           <div className="brand-block">
             <div className="brand-mark">СНТ</div>
@@ -120,45 +121,49 @@ export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => 
           </button>
         </aside>
 
-        <main className="portal-main">
-          <header className="portal-header">
-            <div>
-              <h1>{title}</h1>
-              {subtitle ? <p>{subtitle}</p> : null}
-            </div>
-            <div className="header-actions">
-              <div className="profile-pill">
-                <span>{session.user.name}</span>
-                <span className="role-pill">
-                  {session.user.role === "ADMIN"
-                    ? "Администратор"
-                    : session.user.role === "CHAIRMAN"
-                    ? "Председатель"
-                    : "Житель"}
-                </span>
+        <main className={isForumPage ? "portal-main forum-main" : "portal-main"}>
+          {!isForumPage ? (
+            <header className="portal-header">
+              <div>
+                <h1>{title}</h1>
+                {subtitle ? <p>{subtitle}</p> : null}
               </div>
-            </div>
-          </header>
+              <div className="header-actions">
+                <div className="profile-pill">
+                  <span>{session.user.name}</span>
+                  <span className="role-pill">
+                    {session.user.role === "ADMIN"
+                      ? "Администратор"
+                      : session.user.role === "CHAIRMAN"
+                      ? "Председатель"
+                      : "Житель"}
+                  </span>
+                </div>
+              </div>
+            </header>
+          ) : null}
 
-          <section className="portal-content">{children}</section>
+          <section className={isForumPage ? "portal-content forum-content" : "portal-content"}>{children}</section>
         </main>
       </div>
 
-      <nav className="mobile-nav">
-        {items.slice(0, 5).map((item) => {
-          const MobileNavIcon = mobileNavIconMap[item.href] ?? Circle;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={pathname === item.href ? "mobile-link active" : "mobile-link"}
-            >
-              <MobileNavIcon size={16} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {!isForumPage ? (
+        <nav className="mobile-nav">
+          {items.slice(0, 5).map((item) => {
+            const MobileNavIcon = mobileNavIconMap[item.href] ?? Circle;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={pathname === item.href ? "mobile-link active" : "mobile-link"}
+              >
+                <MobileNavIcon size={16} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      ) : null}
 
       {pathname !== "/forum" ? (
         <>

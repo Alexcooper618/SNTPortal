@@ -96,6 +96,11 @@ interface CreateChargeResponse {
   published: boolean;
 }
 
+interface NoticeMessage {
+  text: string;
+  checkoutUrl?: string;
+}
+
 const toRub = (cents: number): string => `${(cents / 100).toLocaleString("ru-RU")} ₽`;
 
 const toCents = (raw: string): number => {
@@ -116,7 +121,7 @@ export default function PaymentsPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [balance, setBalance] = useState<BalanceResponse | null>(null);
   const [charges, setCharges] = useState<ChargeSummaryItem[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<NoticeMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -209,8 +214,11 @@ export default function PaymentsPage() {
 
       setMessage(
         response.checkoutUrl
-          ? `Платеж создан. Перейдите по URL: ${response.checkoutUrl}`
-          : "Платеж создан"
+          ? {
+              text: "Платеж создан. Нажмите кнопку ниже для перехода к оплате.",
+              checkoutUrl: response.checkoutUrl,
+            }
+          : { text: "Платеж создан" }
       );
     } catch (requestError) {
       setError(
@@ -260,8 +268,8 @@ export default function PaymentsPage() {
       const skipped = response.participants.skippedUsers.length;
       setMessage(
         skipped > 0
-          ? `Сессия создана. Пропущено пользователей без участков/неактивных: ${skipped}`
-          : "Сессия создана"
+          ? { text: `Сессия создана. Пропущено пользователей без участков/неактивных: ${skipped}` }
+          : { text: "Сессия создана" }
       );
       await loadCharges();
     } catch (requestError) {
@@ -328,8 +336,8 @@ export default function PaymentsPage() {
       const skipped = response.participants.skippedUsers.length;
       setMessage(
         skipped > 0
-          ? "Запрос создан, но пользователь пропущен (нет основного участка или неактивен)."
-          : "Запрос на оплату создан"
+          ? { text: "Запрос создан, но пользователь пропущен (нет основного участка или неактивен)." }
+          : { text: "Запрос на оплату создан" }
       );
       await loadCharges();
     } catch (requestError) {
@@ -351,7 +359,7 @@ export default function PaymentsPage() {
         tenantSlug: session.tenantSlug,
         body: {},
       });
-      setMessage("Сессия закрыта (участников больше нельзя менять).");
+      setMessage({ text: "Сессия закрыта (участников больше нельзя менять)." });
       await loadCharges();
     } catch (requestError) {
       setError(requestError instanceof ApiRequestError ? requestError.message : "Не удалось закрыть сессию");
@@ -370,7 +378,18 @@ export default function PaymentsPage() {
     return (
       <PortalShell title="Сборы и платежи" subtitle="Годовые сессии, разовые запросы и мониторинг">
         {error ? <div className="error">{error}</div> : null}
-        {message ? <div className="notice">{message}</div> : null}
+        {message ? (
+          <div className="notice">
+            <div>{message.text}</div>
+            {message.checkoutUrl ? (
+              <div className="row" style={{ marginTop: 8 }}>
+                <a className="secondary-button" href={message.checkoutUrl} rel="noreferrer">
+                  Перейти к оплате
+                </a>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="grid-2">
           <Panel title="Открыть годовую сессию">
@@ -520,7 +539,18 @@ export default function PaymentsPage() {
   return (
     <PortalShell title="Платежи и баланс" subtitle="Начисления, инвойсы и онлайн-оплата">
       {error ? <div className="error">{error}</div> : null}
-      {message ? <div className="notice">{message}</div> : null}
+      {message ? (
+        <div className="notice">
+          <div>{message.text}</div>
+          {message.checkoutUrl ? (
+            <div className="row" style={{ marginTop: 8 }}>
+              <a className="secondary-button" href={message.checkoutUrl} rel="noreferrer">
+                Перейти к оплате
+              </a>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid-3">
         <StatCard label="Начислено" value={balance ? toRub(balance.totalDueCents) : "..."} />

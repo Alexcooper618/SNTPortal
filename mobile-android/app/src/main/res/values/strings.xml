@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">СНТ Портал</string>
+    <string name="error_title">Не удалось открыть портал</string>
+    <string name="retry">Повторить</string>
+    <string name="network_error">Проверьте интернет-соединение и попробуйте снова.</string>
+    <string name="ssl_error">Безопасное соединение недоступно (ошибка SSL).</string>
+    <string name="server_error">Сервис временно недоступен. Попробуйте позже.</string>
+    <string name="invalid_base_url">Неверный PORTAL_BASE_URL: %1$s</string>
+</resources>

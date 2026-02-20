@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest, ApiRequestError } from "@/lib/api";
 import { loadSession, SessionState } from "@/lib/session";
 import { ArrowLeft, CornerUpLeft, Maximize2, Minimize2, Pencil, Trash2, X } from "lucide-react";
@@ -132,6 +133,7 @@ type MessengerDrawerProps =
     };
 
 export function MessengerDrawer(props: MessengerDrawerProps) {
+  const router = useRouter();
   const isPage = props.variant === "page";
   const open = isPage ? true : props.open;
   const onClose = isPage ? null : props.onClose;
@@ -149,7 +151,8 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
 
   const [newTopicName, setNewTopicName] = useState("");
   const [expanded, setExpanded] = useState(isPage);
-  const [view, setView] = useState<"list" | "chat">(isPage ? "chat" : "list");
+  const [view, setView] = useState<"list" | "chat">("list");
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [actionMessageId, setActionMessageId] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -160,9 +163,26 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
   const pinnedToBottomRef = useRef(true);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const compact = !isPage && !expanded;
+  const compact = (!isPage && !expanded) || (isPage && isMobileViewport);
   const showList = !compact || view === "list";
   const showChat = !compact || view === "chat";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(max-width: 980px)");
+    const syncViewport = () => setIsMobileViewport(mediaQuery.matches);
+
+    syncViewport();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", syncViewport);
+      return () => mediaQuery.removeEventListener("change", syncViewport);
+    }
+
+    mediaQuery.addListener(syncViewport);
+    return () => mediaQuery.removeListener(syncViewport);
+  }, []);
 
   const authOptions = useCallback(() => {
     const latest = loadSession();
@@ -541,6 +561,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
       className={[
         "messenger-drawer",
         isPage ? "is-page is-expanded" : expanded ? "is-widget is-expanded" : "is-widget is-compact",
+        compact ? "is-compact" : "",
       ].join(" ")}
       onMouseDown={(event) => event.stopPropagation()}
     >
@@ -553,6 +574,17 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
               onClick={() => setView("list")}
               title="Назад к списку"
               aria-label="Назад к списку"
+            >
+              <ArrowLeft size={16} />
+            </button>
+          ) : null}
+          {isPage && compact && view === "list" ? (
+            <button
+              type="button"
+              className="secondary-button small icon-button"
+              onClick={() => router.push("/dashboard")}
+              title="На главную"
+              aria-label="На главную"
             >
               <ArrowLeft size={16} />
             </button>

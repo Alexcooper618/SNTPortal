@@ -90,7 +90,7 @@ export default function DocumentsPage() {
               <li key={item.id}>
                 <strong>{item.title}</strong> · {item.category} · {item.fileType} · {item.visibility}
                 <br />
-                <a href={item.fileUrl} target="_blank" rel="noreferrer">
+                <a href={item.fileUrl} rel="noreferrer">
                   {item.fileUrl}
                 </a>
               </li>
