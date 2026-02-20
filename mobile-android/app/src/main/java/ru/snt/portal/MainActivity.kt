@@ -23,6 +23,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.webkit.WebResourceErrorCompat
 import androidx.webkit.WebViewClientCompat
 import java.util.Locale
@@ -52,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        configureSystemBars()
 
         webView = findViewById(R.id.web_view)
         errorContainer = findViewById(R.id.error_container)
@@ -195,6 +197,15 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun configureSystemBars() {
+        window.statusBarColor = ContextCompat.getColor(this, R.color.system_bar_background)
+        window.navigationBarColor = ContextCompat.getColor(this, R.color.system_nav_background)
+
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController?.isAppearanceLightStatusBars = true
+        insetsController?.isAppearanceLightNavigationBars = true
     }
 
     private fun handleNavigation(uri: Uri): Boolean {

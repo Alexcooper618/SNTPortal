@@ -305,7 +305,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <PortalShell title="Главная" subtitle="Сводка по платежам, обращениям, новостям и чату">
+    <PortalShell title="Главная" subtitle="Сводка по платежам, обращениям, новостям и чату" hideHeader>
       <section className="hero">
         <div className="hero-top">
           <div className="hero-copy">

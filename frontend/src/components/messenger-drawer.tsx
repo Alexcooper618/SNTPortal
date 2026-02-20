@@ -166,6 +166,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
   const compact = (!isPage && !expanded) || (isPage && isMobileViewport);
   const showList = !compact || view === "list";
   const showChat = !compact || view === "chat";
+  const showInlineMessageActions = !isMobileViewport;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -808,7 +809,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                             {timeShort}
                             {message.isEdited ? " · изм." : ""}
                           </p>
-                          {(canReply || canEdit || canDelete) && !message.isDeleted ? (
+                          {showInlineMessageActions && (canReply || canEdit || canDelete) && !message.isDeleted ? (
                             <button
                               type="button"
                               className="msg-more"

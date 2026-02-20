@@ -52,9 +52,10 @@ interface PortalShellProps {
   children: ReactNode;
   title: string;
   subtitle?: string;
+  hideHeader?: boolean;
 }
 
-export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => {
+export const PortalShell = ({ children, title, subtitle, hideHeader = false }: PortalShellProps) => {
   const pathname = usePathname();
   const router = useRouter();
   const { ready, session, logout } = useAuth(true);
@@ -66,11 +67,15 @@ export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => 
 
     const handler = () => {
       if (pathname === "/forum") return;
+      if (window.matchMedia("(max-width: 980px)").matches) {
+        router.push("/forum");
+        return;
+      }
       setMessengerOpen(true);
     };
     window.addEventListener("snt:open-messenger", handler as EventListener);
     return () => window.removeEventListener("snt:open-messenger", handler as EventListener);
-  }, [pathname]);
+  }, [pathname, router]);
 
   useEffect(() => {
     if (pathname === "/forum") {
@@ -122,7 +127,7 @@ export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => 
         </aside>
 
         <main className={isForumPage ? "portal-main forum-main" : "portal-main"}>
-          {!isForumPage ? (
+          {!isForumPage && !hideHeader ? (
             <header className="portal-header">
               <div>
                 <h1>{title}</h1>
