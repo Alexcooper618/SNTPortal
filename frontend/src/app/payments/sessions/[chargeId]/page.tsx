@@ -55,7 +55,7 @@ interface AdminUser {
   id: number;
   name: string;
   phone: string;
-  role: "USER" | "CHAIRMAN";
+  role: "USER" | "CHAIRMAN" | "ADMIN";
   isActive: boolean;
   plotMemberships?: Array<{ isPrimary: boolean; plot: { id: number; number: string } }>;
 }

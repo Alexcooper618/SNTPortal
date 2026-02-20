@@ -15,6 +15,7 @@ enum TenantStatus {
 enum UserRole {
   USER
   CHAIRMAN
+  ADMIN
 }
 
 enum OtpPurpose {
@@ -134,6 +135,10 @@ model Tenant {
   name             String
   slug             String               @unique
   location         String?
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  timeZone         String?
   status           TenantStatus         @default(ACTIVE)
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt

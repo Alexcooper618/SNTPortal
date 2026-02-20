@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   CreditCard,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 import { PortalShell } from "@/components/portal-shell";
 import { Panel, StatCard } from "@/components/ui-kit";
-import { apiRequest } from "@/lib/api";
+import { apiRequest, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 
 interface BalanceResponse {
@@ -100,6 +101,22 @@ interface VotesResponse {
   items: VoteItem[];
 }
 
+interface WeatherResponse {
+  tenant: {
+    id: number;
+    slug: string;
+    name: string;
+    address?: string | null;
+    location?: string | null;
+    timeZone?: string | null;
+  };
+  weather: {
+    temperatureC: number;
+    weatherCode: number | null;
+    fetchedAt: string;
+  };
+}
+
 const toRub = (cents: number): string => `${(cents / 100).toLocaleString("ru-RU")} ₽`;
 
 const formatDate = (value: string) => {
@@ -141,6 +158,7 @@ function ActionCard(props: {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { session, ready } = useAuth(true);
 
   const [loading, setLoading] = useState(true);
@@ -152,15 +170,27 @@ export default function DashboardPage() {
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [votes, setVotes] = useState<VoteItem[]>([]);
+  const [weather, setWeather] = useState<WeatherResponse | null>(null);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ready || !session) return;
+
+    if (session.user.role === "ADMIN") {
+      router.replace("/platform");
+      return;
+    }
 
     const load = async () => {
       setLoading(true);
 
       try {
-        const [balance, notifications, incidentData, newsData, invoiceData, meetingsData, votesData] =
+        const weatherPromise = apiRequest<WeatherResponse>("/weather/current", {
+          token: session.accessToken,
+          tenantSlug: session.tenantSlug,
+        }).catch((err) => err);
+
+        const [balance, notifications, incidentData, newsData, invoiceData, meetingsData, votesData, weatherResult] =
           await Promise.all([
             apiRequest<BalanceResponse>("/billing/balance/me", {
               token: session.accessToken,
@@ -190,6 +220,7 @@ export default function DashboardPage() {
               token: session.accessToken,
               tenantSlug: session.tenantSlug,
             }),
+            weatherPromise,
           ]);
 
         setOutstanding(balance.outstandingCents);
@@ -206,6 +237,22 @@ export default function DashboardPage() {
         setInvoices(invoiceData.items);
         setMeetings(meetingsData.items);
         setVotes(votesData.items);
+
+        if (weatherResult instanceof ApiRequestError) {
+          if (weatherResult.status === 404 && weatherResult.payload?.code === "TENANT_LOCATION_NOT_CONFIGURED") {
+            setWeather(null);
+            setWeatherError(null);
+          } else {
+            setWeather(null);
+            setWeatherError("Погода временно недоступна");
+          }
+        } else if (weatherResult && typeof weatherResult === "object") {
+          setWeather(weatherResult as WeatherResponse);
+          setWeatherError(null);
+        } else {
+          setWeather(null);
+          setWeatherError(null);
+        }
       } catch (_error) {
         setOutstanding(0);
         setPaid(0);
@@ -215,13 +262,15 @@ export default function DashboardPage() {
         setInvoices([]);
         setMeetings([]);
         setVotes([]);
+        setWeather(null);
+        setWeatherError(null);
       } finally {
         setLoading(false);
       }
     };
 
     load();
-  }, [ready, session]);
+  }, [ready, router, session]);
 
   const openIncidents = useMemo(
     () => incidents.filter((item) => item.status === "OPEN" || item.status === "IN_PROGRESS"),
@@ -259,6 +308,29 @@ export default function DashboardPage() {
   const paidValue = loading ? "..." : toRub(paid);
   const incidentValue = loading ? "..." : String(openIncidents.length);
   const votesValue = loading ? "..." : String(openVotes.length);
+
+  const weatherBlock = useMemo(() => {
+    if (loading) return { title: "Погода", value: "...", hint: "Загрузка..." };
+    if (weatherError) return { title: "Погода", value: "—", hint: weatherError };
+    if (!weather) return null;
+
+    const tz = weather.tenant.timeZone ?? "UTC";
+    const nowLocal = new Intl.DateTimeFormat("ru-RU", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date());
+
+    const temp = Math.round(weather.weather.temperatureC);
+    const tempLabel = `${temp > 0 ? "+" : ""}${temp}°`;
+    const place = weather.tenant.address ?? weather.tenant.location ?? weather.tenant.slug;
+
+    return {
+      title: "Погода",
+      value: `${tempLabel} · ${nowLocal}`,
+      hint: place,
+    };
+  }, [loading, weather, weatherError]);
 
   if (!ready || !session) {
     return <div className="center-screen">Загрузка...</div>;
@@ -368,6 +440,15 @@ export default function DashboardPage() {
         </div>
 
         <aside className="dashboard-side">
+          {weatherBlock ? (
+            <Panel title={weatherBlock.title}>
+              <div className="mini-block">
+                <p className="mini-value">{weatherBlock.value}</p>
+                <p className="muted">{weatherBlock.hint}</p>
+              </div>
+            </Panel>
+          ) : null}
+
           <Panel title="Быстрые действия">
             <div className="action-grid">
               <ActionCard

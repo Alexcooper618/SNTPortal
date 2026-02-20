@@ -29,6 +29,8 @@ const chairmanNav: NavItem[] = [
   { href: "/governance", label: "Собрания" },
 ];
 
+const adminNav: NavItem[] = [{ href: "/platform", label: "Панель администратора" }];
+
 interface PortalShellProps {
   children: ReactNode;
   title: string;
@@ -62,7 +64,8 @@ export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => 
     return <div className="center-screen">Загрузка...</div>;
   }
 
-  const items = session.user.role === "CHAIRMAN" ? chairmanNav : residentNav;
+  const items =
+    session.user.role === "ADMIN" ? adminNav : session.user.role === "CHAIRMAN" ? chairmanNav : residentNav;
 
   return (
     <div className="portal-bg">
@@ -109,7 +112,13 @@ export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => 
             <div className="header-actions">
               <div className="profile-pill">
                 <span>{session.user.name}</span>
-                <span className="role-pill">{session.user.role === "CHAIRMAN" ? "Председатель" : "Житель"}</span>
+                <span className="role-pill">
+                  {session.user.role === "ADMIN"
+                    ? "Администратор"
+                    : session.user.role === "CHAIRMAN"
+                    ? "Председатель"
+                    : "Житель"}
+                </span>
               </div>
             </div>
           </header>

@@ -64,7 +64,7 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction) =>
     .catch(() => next(unauthorized("Invalid or expired access token")));
 };
 
-export const requireRole = (...roles: Array<"USER" | "CHAIRMAN">) => {
+export const requireRole = (...roles: Array<"USER" | "CHAIRMAN" | "ADMIN">) => {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
       next(unauthorized("Authentication required"));

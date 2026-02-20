@@ -35,7 +35,7 @@ interface AdminUser {
   id: number;
   name: string;
   phone: string;
-  role: "USER" | "CHAIRMAN";
+  role: "USER" | "CHAIRMAN" | "ADMIN";
   isActive: boolean;
   mustChangePassword: boolean;
   lastLoginAt?: string | null;

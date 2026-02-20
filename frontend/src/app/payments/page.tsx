@@ -76,7 +76,7 @@ interface UserListItem {
   id: number;
   name: string;
   phone: string;
-  role: "USER" | "CHAIRMAN";
+  role: "USER" | "CHAIRMAN" | "ADMIN";
   isActive: boolean;
   plotMemberships?: Array<{ isPrimary: boolean }>;
 }

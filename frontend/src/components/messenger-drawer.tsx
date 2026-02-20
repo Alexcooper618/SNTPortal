@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest, ApiRequestError } from "@/lib/api";
 import { loadSession, SessionState } from "@/lib/session";
 import { ArrowLeft, CornerUpLeft, Maximize2, Minimize2, Pencil, Trash2, X } from "lucide-react";
@@ -13,7 +13,7 @@ interface ChatUser {
   id: number;
   name: string;
   phone?: string;
-  role: "USER" | "CHAIRMAN";
+  role: "USER" | "CHAIRMAN" | "ADMIN";
   ownedPlots?: Array<{ id: number; number: string }>;
 }
 
@@ -43,7 +43,7 @@ interface ChatMessage {
   author: {
     id: number;
     name: string;
-    role: "USER" | "CHAIRMAN";
+    role: "USER" | "CHAIRMAN" | "ADMIN";
   };
 }
 

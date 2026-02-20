@@ -1,7 +1,7 @@
 interface AuthUserPayload {
   userId: number;
   tenantId: number;
-  role: "USER" | "CHAIRMAN";
+  role: "USER" | "CHAIRMAN" | "ADMIN";
   sessionId?: string;
 }
 

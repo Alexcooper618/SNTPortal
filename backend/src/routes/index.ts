@@ -14,6 +14,8 @@ import meetingsRoutes from "./meetings";
 import votesRoutes from "./votes";
 import notificationsRoutes from "./notifications";
 import auditRoutes from "./audit";
+import platformRoutes from "./platform";
+import weatherRoutes from "./weather";
 
 const router = Router();
 
@@ -32,5 +34,7 @@ router.use("/meetings", meetingsRoutes);
 router.use("/votes", votesRoutes);
 router.use("/notifications", notificationsRoutes);
 router.use("/audit", auditRoutes);
+router.use("/platform", platformRoutes);
+router.use("/weather", weatherRoutes);
 
 export default router;

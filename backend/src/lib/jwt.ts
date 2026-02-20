@@ -4,7 +4,7 @@ import { env } from "../config/env";
 export interface AccessTokenPayload {
   userId: number;
   tenantId: number;
-  role: "USER" | "CHAIRMAN";
+  role: "USER" | "CHAIRMAN" | "ADMIN";
   sessionId: string;
 }
 
