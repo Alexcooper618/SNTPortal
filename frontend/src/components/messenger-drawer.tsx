@@ -168,6 +168,29 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
   const showChat = !compact || view === "chat";
   const showInlineMessageActions = !isMobileViewport;
 
+  const syncDraftHeight = useCallback(() => {
+    const textarea = draftRef.current;
+    if (!textarea || typeof window === "undefined") return;
+
+    if (!isMobileViewport) {
+      textarea.style.height = "";
+      textarea.style.overflowY = "";
+      return;
+    }
+
+    textarea.style.height = "auto";
+
+    const computed = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(computed.lineHeight) || 21;
+    const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
+    const maxHeight = lineHeight * 3 + paddingTop + paddingBottom;
+    const targetHeight = Math.max(48, Math.min(textarea.scrollHeight, maxHeight));
+
+    textarea.style.height = `${targetHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [isMobileViewport]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -184,6 +207,11 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     mediaQuery.addListener(syncViewport);
     return () => mediaQuery.removeListener(syncViewport);
   }, []);
+
+  useEffect(() => {
+    if (!showChat) return;
+    syncDraftHeight();
+  }, [draft, showChat, syncDraftHeight]);
 
   const authOptions = useCallback(() => {
     const latest = loadSession();
@@ -912,7 +940,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                     onClick={(event) => setCursorPosition(event.currentTarget.selectionStart ?? draft.length)}
                     onKeyUp={(event) => setCursorPosition(event.currentTarget.selectionStart ?? draft.length)}
                     placeholder="Сообщение"
-                    rows={2}
+                    rows={isMobileViewport ? 1 : 2}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();

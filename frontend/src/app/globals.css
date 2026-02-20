@@ -20,6 +20,7 @@
   --chat-accent: #2f87ff;
   --chat-outgoing: #e2f1ff;
   --chat-outgoing-border: #c2dbf3;
+  --forum-vh: 100vh;
 }
 
 * {
@@ -1512,13 +1513,8 @@ a {
 
   .portal-bg.forum-bg {
     padding: 0;
-    min-height: 100svh;
-  }
-
-  @supports (height: 100dvh) {
-    .portal-bg.forum-bg {
-      min-height: 100dvh;
-    }
+    min-height: var(--forum-vh, 100dvh);
+    height: var(--forum-vh, 100dvh);
   }
 
   .mobile-nav {
@@ -1595,14 +1591,9 @@ a {
   }
 
   .portal-shell.forum-shell {
-    min-height: 100svh;
+    min-height: var(--forum-vh, 100dvh);
+    height: var(--forum-vh, 100dvh);
     background: var(--chat-bg);
-  }
-
-  @supports (height: 100dvh) {
-    .portal-shell.forum-shell {
-      min-height: 100dvh;
-    }
   }
 
   .portal-main.forum-main {
@@ -1621,17 +1612,9 @@ a {
 
   body.forum-native-page .portal-bg.forum-bg,
   body.forum-native-page .portal-shell.forum-shell {
-    height: 100svh;
-    min-height: 100svh;
+    height: var(--forum-vh, 100dvh);
+    min-height: var(--forum-vh, 100dvh);
     overflow: hidden;
-  }
-
-  @supports (height: 100dvh) {
-    body.forum-native-page .portal-bg.forum-bg,
-    body.forum-native-page .portal-shell.forum-shell {
-      height: 100dvh;
-      min-height: 100dvh;
-    }
   }
 
   body.forum-native-page .portal-main.forum-main,
@@ -1758,7 +1741,10 @@ a {
   }
 
   .messenger-drawer.is-page.is-compact .messenger-body {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
   }
 
   .messenger-drawer.is-page.is-compact .messenger-side-top {
@@ -1801,11 +1787,38 @@ a {
   .messenger-drawer.is-page.is-compact .messenger-messages {
     padding: 10px 10px;
     background: var(--chat-bg);
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
   }
 
   .messenger-drawer.is-page.is-compact .messenger-compose {
     background: var(--chat-surface);
     border-top: 1px solid var(--chat-divider);
+    align-items: center;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 10px;
+    padding-bottom: max(10px, calc(10px + env(safe-area-inset-bottom)));
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-chat {
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-compose textarea {
+    min-height: 48px;
+    height: 48px;
+    max-height: 120px;
+    line-height: 1.35;
+  }
+
+  .messenger-drawer.is-page.is-compact .messenger-compose .primary-button {
+    height: 48px;
+    min-height: 48px;
+    align-self: center;
   }
 
   .inline-form-fields {

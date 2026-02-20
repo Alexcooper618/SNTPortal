@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.net.http.SslError
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.webkit.CookieManager
@@ -106,6 +107,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        configureSystemBars()
+    }
+
     @Suppress("SetJavaScriptEnabled")
     private fun configureWebView() {
         CookieManager.getInstance().apply {
@@ -200,8 +206,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun configureSystemBars() {
-        window.statusBarColor = ContextCompat.getColor(this, R.color.system_bar_background)
-        window.navigationBarColor = ContextCompat.getColor(this, R.color.system_nav_background)
+        val statusBarColor = ContextCompat.getColor(this, R.color.system_bar_background)
+        val navigationBarColor = ContextCompat.getColor(this, R.color.system_nav_background)
+
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        window.statusBarColor = statusBarColor
+        window.navigationBarColor = navigationBarColor
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
 
         val insetsController = WindowCompat.getInsetsController(window, window.decorView)
         insetsController?.isAppearanceLightStatusBars = true

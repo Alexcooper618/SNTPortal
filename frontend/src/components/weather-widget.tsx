@@ -58,24 +58,6 @@ const resolveWeatherVisual = (weatherCode: number | null): { icon: LucideIcon; l
   return { icon: Cloud, label: "Погода" };
 };
 
-const formatLocalTime = (value: string, timeZone?: string | null) => {
-  const parsed = new Date(value);
-  const resolvedDate = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-
-  try {
-    return new Intl.DateTimeFormat("ru-RU", {
-      hour: "2-digit",
-      minute: "2-digit",
-      ...(timeZone ? { timeZone } : {}),
-    }).format(resolvedDate);
-  } catch (_error) {
-    return new Intl.DateTimeFormat("ru-RU", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(resolvedDate);
-  }
-};
-
 export const WeatherWidget = ({
   loading,
   weather,
@@ -115,13 +97,19 @@ export const WeatherWidget = ({
 
   const { icon: WeatherIcon, label } = resolveWeatherVisual(weather.weather.weatherCode);
   const temp = Math.round(weather.weather.temperatureC);
-  const place =
-    weather.tenant.address ??
-    weather.tenant.location ??
-    weather.tenant.name ??
-    weather.tenant.slug ??
-    tenantFallbackSlug;
-  const localTime = formatLocalTime(weather.weather.fetchedAt, weather.tenant.timeZone);
+  const fallbackSlug = tenantFallbackSlug.trim();
+  const tenantNameRaw = (
+    weather.tenant.name?.trim() ||
+    weather.tenant.slug?.trim() ||
+    fallbackSlug
+  ).trim();
+  const tenantName = tenantNameRaw
+    ? /^(снт|snt)\b/i.test(tenantNameRaw)
+      ? tenantNameRaw
+      : `СНТ ${tenantNameRaw}`
+    : "";
+  const geo = weather.tenant.location?.trim() || weather.tenant.address?.trim() || "";
+  const place = tenantName && geo ? `${tenantName}, ${geo}` : tenantName || geo || fallbackSlug;
 
   return (
     <section className="weather-widget" aria-live="polite">
@@ -133,7 +121,7 @@ export const WeatherWidget = ({
         </span>
       </div>
       <p className="weather-widget-temp">{`${temp > 0 ? "+" : ""}${temp}°`}</p>
-      <p className="weather-widget-meta">{`${place} · ${localTime}`}</p>
+      <p className="weather-widget-meta">{place}</p>
     </section>
   );
 };
