@@ -1,0 +1,16 @@
+FROM node:20-bookworm-slim
+WORKDIR /app
+
+# Prisma engines require OpenSSL at runtime
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY backend/package*.json ./
+RUN npm ci
+COPY backend ./
+
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm","run","start:prod"]

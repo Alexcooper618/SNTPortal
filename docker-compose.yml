@@ -1,19 +1,83 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16
     container_name: snt-postgres
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: snt_user
-      POSTGRES_PASSWORD: snt_password
-      POSTGRES_DB: snt_db
+      POSTGRES_USER: ${POSTGRES_USER:-snt_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-snt_password}
+      POSTGRES_DB: ${POSTGRES_DB:-snt_db}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  traefik:
+    image: traefik:v2.11
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL:-admin@snt-portal.ru}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: sntportal-api
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://app.snt-portal.ru}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.snt-portal.ru/api/v1}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://snt_user:snt_password@postgres:5432/snt_db?schema=public}
+      DEFAULT_TENANT_SLUG: ${DEFAULT_TENANT_SLUG:-rassvet}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-CHANGE_ME_ACCESS_SECRET_64_CHARS}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-CHANGE_ME_REFRESH_SECRET_64_CHARS}
+      PLATFORM_ADMIN_PHONE: ${PLATFORM_ADMIN_PHONE:-}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:-}
+      PLATFORM_ADMIN_NAME: ${PLATFORM_ADMIN_NAME:-Администратор}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.snt-api.entrypoints=websecure
+      - traefik.http.routers.snt-api.rule=Host(`${API_DOMAIN:-api.snt-portal.ru}`)
+      - traefik.http.routers.snt-api.tls=true
+      - traefik.http.routers.snt-api.tls.certresolver=le
+      - traefik.http.services.snt-api.loadbalancer.server.port=3000
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: sntportal-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      SNT_API_URL: ${SNT_API_URL:-https://api.snt-portal.ru/api/v1}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.snt-portal.ru/api/v1}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.snt-web.entrypoints=websecure
+      - traefik.http.routers.snt-web.rule=Host(`${APP_DOMAIN:-app.snt-portal.ru}`)
+      - traefik.http.routers.snt-web.tls=true
+      - traefik.http.routers.snt-web.tls.certresolver=le
+      - traefik.http.services.snt-web.loadbalancer.server.port=3001
+
 volumes:
   postgres_data:
-
+  letsencrypt:

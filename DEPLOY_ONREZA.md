@@ -42,3 +42,29 @@
 Если ONREZA запускает npm в корне репозитория (`/workspace`) — он не найдет `package.json`.
 Решение: поставить правильный **Root directory** (`backend` или `frontend`) для проекта.
 
+## Альтернатива: единый Docker Compose на одном сервере
+
+Если деплой идет не через два отдельных ONREZA-проекта, а на один VPS:
+
+1. В корне репо использовать `docker-compose.yml`, `Dockerfile.api`, `Dockerfile.web`.
+2. Создать `.env` из `.env.example` и заполнить секреты.
+3. Запуск:
+
+```bash
+docker compose build --no-cache api web
+docker compose up -d --force-recreate traefik api web
+docker compose logs --tail=200 api
+```
+
+4. Миграции:
+
+```bash
+docker compose exec api npm run migrate:deploy
+```
+
+5. Проверка:
+
+```bash
+curl -i https://api.snt-portal.ru/api/v1/auth/tenants
+curl -i https://api.snt-portal.ru/health
+```
