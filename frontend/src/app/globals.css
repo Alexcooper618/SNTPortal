@@ -53,6 +53,10 @@ body.forum-native-page {
   background: var(--chat-bg);
 }
 
+body.news-overlay-open {
+  overflow: hidden;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -770,7 +774,7 @@ a {
   background: rgba(9, 18, 30, 0.6);
   display: grid;
   place-items: center;
-  z-index: 90;
+  z-index: 220;
   padding: 12px;
 }
 
@@ -2186,14 +2190,34 @@ a {
 
   .news-story-viewer {
     width: 100%;
-    height: 100dvh;
+    height: 100svh;
+    min-height: 100svh;
     border-radius: 0;
-    padding: 10px;
+    padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom));
+  }
+
+  @supports (height: 100dvh) {
+    .news-story-viewer {
+      height: 100dvh;
+      min-height: 100dvh;
+    }
+  }
+
+  .news-story-viewer-overlay {
+    padding: 0;
+    place-items: stretch;
   }
 
   .news-story-viewer-media img,
   .news-story-viewer-media video {
-    max-height: calc(100dvh - 220px);
+    max-height: calc(100svh - 220px);
+  }
+
+  @supports (height: 100dvh) {
+    .news-story-viewer-media img,
+    .news-story-viewer-media video {
+      max-height: calc(100dvh - 220px);
+    }
   }
 
   .messenger-overlay {

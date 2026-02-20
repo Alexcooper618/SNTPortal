@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, Plus, X } from "lucide-react";
 import { PortalShell } from "@/components/portal-shell";
 import { NewsComposer } from "@/components/news/news-composer";
@@ -84,11 +85,16 @@ export default function NewsPage() {
   const [deletingPostId, setDeletingPostId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [isClient, setIsClient] = useState(false);
 
   const token = session?.accessToken ?? "";
   const tenantSlug = session?.tenantSlug ?? "";
 
   const canLoadMore = useMemo(() => nextCursor !== null, [nextCursor]);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -157,6 +163,15 @@ export default function NewsPage() {
     loadFeed();
     loadStories();
   }, [ready, session]);
+
+  useEffect(() => {
+    if (!isClient) return;
+    const hasOverlay = storyDialogOpen || activeStoryGroupIndex !== null;
+    document.body.classList.toggle("news-overlay-open", hasOverlay);
+    return () => {
+      document.body.classList.remove("news-overlay-open");
+    };
+  }, [activeStoryGroupIndex, isClient, storyDialogOpen]);
 
   const createPost = async (payload: { body: string; files: File[] }) => {
     if (!session) return;
@@ -445,65 +460,73 @@ export default function NewsPage() {
         </section>
       </section>
 
-      {storyDialogOpen ? (
-        <div className="news-dialog-overlay" role="dialog" aria-modal="true">
-          <div className="news-story-create-dialog">
-            <header>
-              <h3>Новая история</h3>
-              <button
-                type="button"
-                className="secondary-button small icon-button"
-                onClick={() => {
-                  resetStoryDraft();
-                  setStoryDialogOpen(false);
-                }}
-              >
-                <X size={16} />
-              </button>
-            </header>
+      {isClient && storyDialogOpen
+        ? createPortal(
+            <div className="news-dialog-overlay" role="dialog" aria-modal="true">
+              <div className="news-story-create-dialog">
+                <header>
+                  <h3>Новая история</h3>
+                  <button
+                    type="button"
+                    className="secondary-button small icon-button"
+                    onClick={() => {
+                      resetStoryDraft();
+                      setStoryDialogOpen(false);
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                </header>
 
-            <form className="news-story-create-form" onSubmit={createStory}>
-              <label className="secondary-button">
-                <input type="file" accept="image/*,video/*" onChange={pickStoryFile} />
-                <Plus size={16} />
-                Выбрать фото/видео
-              </label>
+                <form className="news-story-create-form" onSubmit={createStory}>
+                  <label className="secondary-button">
+                    <input type="file" accept="image/*,video/*" onChange={pickStoryFile} />
+                    <Plus size={16} />
+                    Выбрать фото/видео
+                  </label>
 
-              {storyPreviewUrl ? (
-                <div className="news-story-preview">
-                  {storyFile?.type.startsWith("image/") ? (
-                    <img src={storyPreviewUrl} alt="Предпросмотр истории" />
-                  ) : (
-                    <video src={storyPreviewUrl} controls playsInline />
-                  )}
-                </div>
-              ) : null}
+                  {storyPreviewUrl ? (
+                    <div className="news-story-preview">
+                      {storyFile?.type.startsWith("image/") ? (
+                        <img src={storyPreviewUrl} alt="Предпросмотр истории" />
+                      ) : (
+                        <video src={storyPreviewUrl} controls playsInline />
+                      )}
+                    </div>
+                  ) : null}
 
-              <textarea
-                value={storyCaption}
-                onChange={(event) => setStoryCaption(event.target.value)}
-                placeholder="Подпись к истории"
-                maxLength={240}
-              />
+                  <textarea
+                    value={storyCaption}
+                    onChange={(event) => setStoryCaption(event.target.value)}
+                    placeholder="Подпись к истории"
+                    maxLength={240}
+                  />
 
-              <button className="primary-button" type="submit" disabled={publishingStory || !storyFile}>
-                {publishingStory ? <Loader2 size={16} className="spin" /> : null}
-                Опубликовать историю
-              </button>
-            </form>
-          </div>
-        </div>
-      ) : null}
+                  <button className="primary-button" type="submit" disabled={publishingStory || !storyFile}>
+                    {publishingStory ? <Loader2 size={16} className="spin" /> : null}
+                    Опубликовать историю
+                  </button>
+                </form>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
 
-      <NewsStoryViewer
-        groups={stories}
-        activeGroupIndex={activeStoryGroupIndex}
-        currentUserId={session.user.id}
-        deletingStoryId={deletingStoryId}
-        onClose={() => setActiveStoryGroupIndex(null)}
-        onDeleteStory={deleteStory}
-        onMarkViewed={markStoryViewed}
-      />
+      {isClient
+        ? createPortal(
+            <NewsStoryViewer
+              groups={stories}
+              activeGroupIndex={activeStoryGroupIndex}
+              currentUserId={session.user.id}
+              deletingStoryId={deletingStoryId}
+              onClose={() => setActiveStoryGroupIndex(null)}
+              onDeleteStory={deleteStory}
+              onMarkViewed={markStoryViewed}
+            />,
+            document.body
+          )
+        : null}
     </PortalShell>
   );
 }
