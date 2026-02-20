@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { PortalShell } from "@/components/portal-shell";
 import { Panel, StatCard } from "@/components/ui-kit";
+import { WeatherWidget, type WeatherWidgetData } from "@/components/weather-widget";
 import { apiRequest, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -101,22 +102,6 @@ interface VotesResponse {
   items: VoteItem[];
 }
 
-interface WeatherResponse {
-  tenant: {
-    id: number;
-    slug: string;
-    name: string;
-    address?: string | null;
-    location?: string | null;
-    timeZone?: string | null;
-  };
-  weather: {
-    temperatureC: number;
-    weatherCode: number | null;
-    fetchedAt: string;
-  };
-}
-
 const toRub = (cents: number): string => `${(cents / 100).toLocaleString("ru-RU")} ₽`;
 
 const formatDate = (value: string) => {
@@ -170,8 +155,9 @@ export default function DashboardPage() {
   const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
   const [meetings, setMeetings] = useState<MeetingItem[]>([]);
   const [votes, setVotes] = useState<VoteItem[]>([]);
-  const [weather, setWeather] = useState<WeatherResponse | null>(null);
+  const [weather, setWeather] = useState<WeatherWidgetData | null>(null);
   const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [weatherLocationConfigured, setWeatherLocationConfigured] = useState(true);
 
   useEffect(() => {
     if (!ready || !session) return;
@@ -185,7 +171,7 @@ export default function DashboardPage() {
       setLoading(true);
 
       try {
-        const weatherPromise = apiRequest<WeatherResponse>("/weather/current", {
+        const weatherPromise = apiRequest<WeatherWidgetData>("/weather/current", {
           token: session.accessToken,
           tenantSlug: session.tenantSlug,
         }).catch((err) => err);
@@ -242,16 +228,20 @@ export default function DashboardPage() {
           if (weatherResult.status === 404 && weatherResult.payload?.code === "TENANT_LOCATION_NOT_CONFIGURED") {
             setWeather(null);
             setWeatherError(null);
+            setWeatherLocationConfigured(false);
           } else {
             setWeather(null);
             setWeatherError("Погода временно недоступна");
+            setWeatherLocationConfigured(true);
           }
         } else if (weatherResult && typeof weatherResult === "object") {
-          setWeather(weatherResult as WeatherResponse);
+          setWeather(weatherResult as WeatherWidgetData);
           setWeatherError(null);
+          setWeatherLocationConfigured(true);
         } else {
           setWeather(null);
           setWeatherError(null);
+          setWeatherLocationConfigured(true);
         }
       } catch (_error) {
         setOutstanding(0);
@@ -264,6 +254,7 @@ export default function DashboardPage() {
         setVotes([]);
         setWeather(null);
         setWeatherError(null);
+        setWeatherLocationConfigured(true);
       } finally {
         setLoading(false);
       }
@@ -309,29 +300,6 @@ export default function DashboardPage() {
   const incidentValue = loading ? "..." : String(openIncidents.length);
   const votesValue = loading ? "..." : String(openVotes.length);
 
-  const weatherBlock = useMemo(() => {
-    if (loading) return { title: "Погода", value: "...", hint: "Загрузка..." };
-    if (weatherError) return { title: "Погода", value: "—", hint: weatherError };
-    if (!weather) return null;
-
-    const tz = weather.tenant.timeZone ?? "UTC";
-    const nowLocal = new Intl.DateTimeFormat("ru-RU", {
-      timeZone: tz,
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date());
-
-    const temp = Math.round(weather.weather.temperatureC);
-    const tempLabel = `${temp > 0 ? "+" : ""}${temp}°`;
-    const place = weather.tenant.address ?? weather.tenant.location ?? weather.tenant.slug;
-
-    return {
-      title: "Погода",
-      value: `${tempLabel} · ${nowLocal}`,
-      hint: place,
-    };
-  }, [loading, weather, weatherError]);
-
   if (!ready || !session) {
     return <div className="center-screen">Загрузка...</div>;
   }
@@ -339,18 +307,25 @@ export default function DashboardPage() {
   return (
     <PortalShell title="Главная" subtitle="Сводка по платежам, обращениям, новостям и чату">
       <section className="hero">
-        <div className="hero-copy">
-          <p className="hero-kicker">{session.user.role === "CHAIRMAN" ? "Панель председателя" : "Кабинет жителя"}</p>
-          <h2 className="hero-title">{session.user.name}, добро пожаловать</h2>
-          <p className="hero-sub">
-            Быстрые действия, важные события и переписка доступны в один клик.
-          </p>
+        <div className="hero-top">
+          <div className="hero-copy">
+            <p className="hero-kicker">{session.user.role === "CHAIRMAN" ? "Панель председателя" : "Кабинет жителя"}</p>
+            <h2 className="hero-title">{session.user.name}, добро пожаловать</h2>
+            <p className="hero-sub">СНТ: {session.tenantSlug}</p>
+          </div>
+          <WeatherWidget
+            loading={loading}
+            weather={weather}
+            weatherError={weatherError}
+            locationConfigured={weatherLocationConfigured}
+            tenantFallbackSlug={session.tenantSlug}
+          />
         </div>
 
-        <div className="hero-actions">
+        <div className="hero-actions hero-actions-compact">
           <button
             type="button"
-            className="primary-button"
+            className="primary-button hero-button"
             onClick={() => window.dispatchEvent(new CustomEvent("snt:open-messenger"))}
           >
             <MessageSquareText size={18} />
@@ -360,7 +335,7 @@ export default function DashboardPage() {
             <CreditCard size={18} />
             Оплатить
           </Link>
-          <Link href="/incidents" className="secondary-button hero-button">
+          <Link href="/incidents" className="secondary-button hero-button hero-button-wide">
             <TriangleAlert size={18} />
             Создать обращение
           </Link>
@@ -440,15 +415,6 @@ export default function DashboardPage() {
         </div>
 
         <aside className="dashboard-side">
-          {weatherBlock ? (
-            <Panel title={weatherBlock.title}>
-              <div className="mini-block">
-                <p className="mini-value">{weatherBlock.value}</p>
-                <p className="muted">{weatherBlock.hint}</p>
-              </div>
-            </Panel>
-          ) : null}
-
           <Panel title="Быстрые действия">
             <div className="action-grid">
               <ActionCard

@@ -216,10 +216,20 @@ a {
     radial-gradient(circle at 20% 10%, rgba(255, 231, 201, 0.9) 0%, transparent 55%),
     radial-gradient(circle at 90% 20%, rgba(216, 241, 230, 0.9) 0%, transparent 55%),
     linear-gradient(120deg, rgba(255, 255, 255, 0.75), rgba(255, 250, 242, 0.9));
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
   gap: 14px;
+}
+
+.hero-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.hero-copy {
+  display: grid;
+  gap: 4px;
 }
 
 .hero-kicker {
@@ -237,15 +247,22 @@ a {
 }
 
 .hero-sub {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #3a5564;
   max-width: 52ch;
 }
 
 .hero-actions {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
-  min-width: 260px;
+}
+
+.hero-actions-compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .hero-button {
@@ -253,6 +270,63 @@ a {
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.hero-button-wide {
+  min-width: 180px;
+}
+
+.weather-widget {
+  border: 1px solid rgba(216, 201, 184, 0.85);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 12px;
+  min-width: 230px;
+  max-width: 280px;
+  display: grid;
+  gap: 6px;
+}
+
+.weather-widget-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.weather-widget-title {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.weather-widget-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 107, 90, 0.24);
+  background: rgba(31, 107, 90, 0.1);
+  color: #0f4f41;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.weather-widget-temp {
+  margin: 0;
+  font-family: var(--font-heading), "Trebuchet MS", sans-serif;
+  font-size: 30px;
+  line-height: 1;
+  color: #1b3745;
+}
+
+.weather-widget-meta {
+  margin: 0;
+  color: #3a5564;
+  font-size: 12px;
 }
 
 .dashboard-grid {
@@ -1329,7 +1403,7 @@ a {
   }
 
   .portal-bg {
-    padding: 8px 8px 80px;
+    padding: 8px 8px 92px;
   }
 
   .mobile-nav {
@@ -1349,10 +1423,28 @@ a {
 
   .mobile-link {
     border-radius: 10px;
-    padding: 8px 6px;
-    text-align: center;
-    font-size: 11px;
+    padding: 7px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 10px;
+    line-height: 1.05;
+    font-weight: 600;
     color: #355062;
+  }
+
+  .mobile-link svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .mobile-link span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .mobile-link.active {
@@ -1362,9 +1454,12 @@ a {
   }
 
   .grid-2,
-  .grid-3,
-  .grid-4 {
+  .grid-3 {
     grid-template-columns: 1fr;
+  }
+
+  .grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .form-row-2,
@@ -1381,7 +1476,7 @@ a {
   }
 
   .portal-main {
-    padding: 14px;
+    padding: 12px;
   }
 
   .portal-header {
@@ -1389,13 +1484,35 @@ a {
     align-items: flex-start;
   }
 
-  .hero {
-    flex-direction: column;
+  .portal-header h1 {
+    font-size: 22px;
   }
 
-  .hero-actions {
+  .hero {
+    padding: 14px;
+  }
+
+  .hero-top {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-sub {
+    display: none;
+  }
+
+  .weather-widget {
     min-width: 0;
+    max-width: none;
     width: 100%;
+  }
+
+  .hero-actions-compact {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero-actions-compact .hero-button-wide {
+    grid-column: 1 / -1;
   }
 
   .dashboard-grid {
@@ -1411,7 +1528,7 @@ a {
   }
 
   .chat-fab {
-    bottom: 92px;
+    bottom: 104px;
     right: 14px;
   }
 

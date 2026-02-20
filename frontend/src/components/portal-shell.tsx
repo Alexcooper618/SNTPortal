@@ -3,6 +3,15 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
+import {
+  Circle,
+  CreditCard,
+  Home,
+  Map as MapIcon,
+  Megaphone,
+  MessageSquareText,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { MessengerDrawer } from "@/components/messenger-drawer";
 import { ChatFab } from "@/components/chat-fab";
@@ -30,6 +39,14 @@ const chairmanNav: NavItem[] = [
 ];
 
 const adminNav: NavItem[] = [{ href: "/platform", label: "Панель администратора" }];
+
+const mobileNavIconMap: Record<string, LucideIcon> = {
+  "/dashboard": Home,
+  "/map": MapIcon,
+  "/payments": CreditCard,
+  "/news": Megaphone,
+  "/forum": MessageSquareText,
+};
 
 interface PortalShellProps {
   children: ReactNode;
@@ -128,15 +145,19 @@ export const PortalShell = ({ children, title, subtitle }: PortalShellProps) => 
       </div>
 
       <nav className="mobile-nav">
-        {items.slice(0, 5).map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={pathname === item.href ? "mobile-link active" : "mobile-link"}
-          >
-            {item.label}
-          </Link>
-        ))}
+        {items.slice(0, 5).map((item) => {
+          const MobileNavIcon = mobileNavIconMap[item.href] ?? Circle;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={pathname === item.href ? "mobile-link active" : "mobile-link"}
+            >
+              <MobileNavIcon size={16} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       {pathname !== "/forum" ? (
