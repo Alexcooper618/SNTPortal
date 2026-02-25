@@ -85,12 +85,20 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.landing
+      args:
+        LANDING_BASE_URL: ${LANDING_BASE_URL:-https://snt-portal.ru}
+        APP_LOGIN_URL: ${APP_LOGIN_URL:-https://app.snt-portal.ru/login}
+        DEMO_EMAIL: ${DEMO_EMAIL:-hello@snt-portal.ru}
+        LANDING_GOOGLE_SITE_VERIFICATION: ${LANDING_GOOGLE_SITE_VERIFICATION:-}
+        LANDING_YANDEX_SITE_VERIFICATION: ${LANDING_YANDEX_SITE_VERIFICATION:-}
     image: sntportal-landing
     restart: unless-stopped
     environment:
       LANDING_BASE_URL: ${LANDING_BASE_URL:-https://snt-portal.ru}
       APP_LOGIN_URL: ${APP_LOGIN_URL:-https://app.snt-portal.ru/login}
       DEMO_EMAIL: ${DEMO_EMAIL:-hello@snt-portal.ru}
+      LANDING_GOOGLE_SITE_VERIFICATION: ${LANDING_GOOGLE_SITE_VERIFICATION:-}
+      LANDING_YANDEX_SITE_VERIFICATION: ${LANDING_YANDEX_SITE_VERIFICATION:-}
     labels:
       - traefik.enable=true
       - traefik.http.routers.snt-landing-root.entrypoints=websecure
