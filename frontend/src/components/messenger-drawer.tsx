@@ -1,14 +1,16 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiRequest, ApiRequestError } from "@/lib/api";
-import { loadSession, SessionState } from "@/lib/session";
 import { ArrowLeft, CornerUpLeft, Maximize2, Minimize2, Pencil, Trash2, X } from "lucide-react";
+import { apiRequest, ApiRequestError } from "@/lib/api";
+import { chatCache } from "@/lib/chat-cache";
+import { loadSession, SessionState } from "@/lib/session";
 
 type RoomId = string;
 
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
+const GROUP_WINDOW_MS = 3 * 60 * 1000;
 
 interface ChatUser {
   id: number;
@@ -46,6 +48,12 @@ interface ChatMessage {
     name: string;
     role: "USER" | "CHAIRMAN" | "ADMIN";
   };
+}
+
+interface ChatMessageVm extends ChatMessage {
+  createdAtMs: number;
+  timeShort: string;
+  timeFull: string;
 }
 
 interface ChatRoomItem {
@@ -86,6 +94,18 @@ interface DirectRoomResponse {
   } | null;
 }
 
+type MessengerDrawerProps =
+  | {
+      variant?: "widget";
+      open: boolean;
+      onClose: () => void;
+      session: SessionState;
+    }
+  | {
+      variant: "page";
+      session: SessionState;
+    };
+
 const normalizeError = (error: unknown, fallback: string) => {
   if (!(error instanceof ApiRequestError)) return fallback;
   return error.message;
@@ -94,7 +114,7 @@ const normalizeError = (error: unknown, fallback: string) => {
 const roomLabel = (room: ChatRoomItem | null, myUserId: number) => {
   if (!room) return "";
   if (!room.isPrivate) return room.name;
-  const other = room.members.map((m) => m.user).find((u) => u.id !== myUserId);
+  const other = room.members.map((member) => member.user).find((user) => user.id !== myUserId);
   return other ? other.name : "Личный чат";
 };
 
@@ -120,17 +140,143 @@ const renderBodyWithMentions = (body: string) => {
   });
 };
 
-type MessengerDrawerProps =
-  | {
-      variant?: "widget";
-      open: boolean;
-      onClose: () => void;
-      session: SessionState;
-    }
-  | {
-      variant: "page";
-      session: SessionState;
-    };
+const toMessageVm = (message: ChatMessage): ChatMessageVm => {
+  const date = new Date(message.createdAt);
+  const createdAtMs = Number.isNaN(date.getTime()) ? Date.now() : date.getTime();
+
+  return {
+    ...message,
+    createdAtMs,
+    timeShort: date.toLocaleTimeString("ru-RU", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    timeFull: date.toLocaleString("ru-RU"),
+  };
+};
+
+const toMessageVms = (items: ChatMessage[]) => items.map(toMessageVm);
+
+interface MessageItemProps {
+  message: ChatMessageVm;
+  mine: boolean;
+  grouped: boolean;
+  isTopic: boolean;
+  showAuthor: boolean;
+  showAvatar: boolean;
+  needsAvatarSpacer: boolean;
+  showInlineMessageActions: boolean;
+  actionOpen: boolean;
+  canReply: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  onToggleAction: (messageId: string) => void;
+  onReply: (message: ChatMessageVm) => void;
+  onEdit: (message: ChatMessageVm) => void;
+  onDelete: (messageId: string) => void;
+  onLongPressStart: (messageId: string) => void;
+  onLongPressEnd: () => void;
+}
+
+const MessageItem = memo(function MessageItem(props: MessageItemProps) {
+  const {
+    message,
+    mine,
+    grouped,
+    isTopic,
+    showAuthor,
+    showAvatar,
+    needsAvatarSpacer,
+    showInlineMessageActions,
+    actionOpen,
+    canReply,
+    canEdit,
+    canDelete,
+    onToggleAction,
+    onReply,
+    onEdit,
+    onDelete,
+    onLongPressStart,
+    onLongPressEnd,
+  } = props;
+
+  const body = (
+    <>
+      {message.replyTo ? (
+        <div className="msg-reply">
+          <p className="msg-reply-author">{message.replyTo.authorName}</p>
+          <p className="msg-reply-body">{message.replyTo.bodyPreview}</p>
+        </div>
+      ) : null}
+      {showAuthor ? <p className="msg-author">{message.author.name}</p> : null}
+      <p className="msg-body">{renderBodyWithMentions(message.body)}</p>
+      <div className="msg-meta-row">
+        <p className="msg-time" title={message.timeFull}>
+          {message.timeShort}
+          {message.isEdited ? " · изм." : ""}
+        </p>
+        {showInlineMessageActions && (canReply || canEdit || canDelete) && !message.isDeleted ? (
+          <button
+            type="button"
+            className="msg-more"
+            onClick={() => onToggleAction(message.id)}
+            aria-label="Действия с сообщением"
+            title="Действия"
+          >
+            •••
+          </button>
+        ) : null}
+      </div>
+      {actionOpen ? (
+        <div className="msg-actions-menu">
+          {canReply ? (
+            <button type="button" onClick={() => onReply(message)}>
+              <CornerUpLeft size={14} /> Ответить
+            </button>
+          ) : null}
+          {canEdit ? (
+            <button type="button" onClick={() => onEdit(message)}>
+              <Pencil size={14} /> Редактировать
+            </button>
+          ) : null}
+          {canDelete ? (
+            <button type="button" onClick={() => onDelete(message.id)}>
+              <Trash2 size={14} /> Удалить
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+
+  return (
+    <div
+      className={["msg-row", mine ? "mine" : "", grouped ? "grouped" : ""].filter(Boolean).join(" ")}
+      onTouchStart={() => onLongPressStart(message.id)}
+      onTouchEnd={onLongPressEnd}
+      onTouchMove={onLongPressEnd}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onToggleAction(message.id);
+      }}
+    >
+      {!mine && isTopic ? (
+        <div className="msg-stack">
+          {showAvatar ? (
+            <span className="msg-avatar-small" aria-hidden="true">
+              {message.author.name.slice(0, 1).toUpperCase()}
+            </span>
+          ) : needsAvatarSpacer ? (
+            <span className="msg-avatar-spacer" aria-hidden="true" />
+          ) : null}
+          <div className={["msg-bubble", grouped ? "grouped" : ""].filter(Boolean).join(" ")}>{body}</div>
+        </div>
+      ) : (
+        <div className={["msg-bubble", mine ? "mine" : "", grouped ? "grouped" : ""].filter(Boolean).join(" ")}>{body}</div>
+      )}
+    </div>
+  );
+});
 
 export function MessengerDrawer(props: MessengerDrawerProps) {
   const router = useRouter();
@@ -143,10 +289,9 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
   const [rooms, setRooms] = useState<ChatRoomItem[]>([]);
   const [contacts, setContacts] = useState<ChatUser[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<RoomId | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessageVm[]>([]);
   const [draft, setDraft] = useState("");
   const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [newTopicName, setNewTopicName] = useState("");
@@ -154,14 +299,25 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
   const [view, setView] = useState<"list" | "chat">("list");
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [actionMessageId, setActionMessageId] = useState<string | null>(null);
-  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [replyTo, setReplyTo] = useState<ChatMessageVm | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [cursorPosition, setCursorPosition] = useState(0);
+
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [isRoomSwitching, setIsRoomSwitching] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [isMutatingMessage, setIsMutatingMessage] = useState(false);
+  const [isOpeningDirect, setIsOpeningDirect] = useState(false);
+  const [isCreatingTopic, setIsCreatingTopic] = useState(false);
+  const [hasLoadedCurrentRoom, setHasLoadedCurrentRoom] = useState(false);
 
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
   const pinnedToBottomRef = useRef(true);
   const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inflightMessagesRef = useRef<Map<RoomId, Promise<ChatMessageVm[]>>>(new Map());
+  const selectedRoomIdRef = useRef<RoomId | null>(null);
+  const activeRequestSeqRef = useRef(0);
 
   const compact = (!isPage && !expanded) || (isPage && isMobileViewport);
   const showList = !compact || view === "list";
@@ -179,26 +335,22 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     }
 
     textarea.style.height = "auto";
-
     const computed = window.getComputedStyle(textarea);
     const lineHeight = Number.parseFloat(computed.lineHeight) || 21;
     const paddingTop = Number.parseFloat(computed.paddingTop) || 0;
     const paddingBottom = Number.parseFloat(computed.paddingBottom) || 0;
     const maxHeight = lineHeight * 3 + paddingTop + paddingBottom;
     const targetHeight = Math.max(48, Math.min(textarea.scrollHeight, maxHeight));
-
     textarea.style.height = `${targetHeight}px`;
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [isMobileViewport]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const mediaQuery = window.matchMedia("(max-width: 980px)");
     const syncViewport = () => setIsMobileViewport(mediaQuery.matches);
 
     syncViewport();
-
     if (typeof mediaQuery.addEventListener === "function") {
       mediaQuery.addEventListener("change", syncViewport);
       return () => mediaQuery.removeEventListener("change", syncViewport);
@@ -213,6 +365,21 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     syncDraftHeight();
   }, [draft, showChat, syncDraftHeight]);
 
+  useEffect(
+    () => () => {
+      if (!longPressRef.current) return;
+      clearTimeout(longPressRef.current);
+    },
+    []
+  );
+
+  useEffect(() => {
+    selectedRoomIdRef.current = selectedRoomId;
+    if (selectedRoomId) {
+      chatCache.lastSelectedRoomId = selectedRoomId;
+    }
+  }, [selectedRoomId]);
+
   const authOptions = useCallback(() => {
     const latest = loadSession();
     return {
@@ -221,8 +388,22 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     };
   }, [session.accessToken, session.tenantSlug]);
 
+  const setRoomsWithCache = useCallback(
+    (updater: ChatRoomItem[] | ((prev: ChatRoomItem[]) => ChatRoomItem[])) => {
+      setRooms((prev) => {
+        const next =
+          typeof updater === "function"
+            ? (updater as (prev: ChatRoomItem[]) => ChatRoomItem[])(prev)
+            : updater;
+        chatCache.setRooms(next);
+        return next;
+      });
+    },
+    []
+  );
+
   const selectedRoom = useMemo(
-    () => rooms.find((r) => r.id === selectedRoomId) ?? null,
+    () => rooms.find((room) => room.id === selectedRoomId) ?? null,
     [rooms, selectedRoomId]
   );
 
@@ -233,7 +414,6 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
 
   const mentionContext = useMemo(() => {
     if (!selectedRoom || selectedRoom.isPrivate) return null;
-
     const safeCursor = Math.max(0, Math.min(cursorPosition, draft.length));
     const beforeCursor = draft.slice(0, safeCursor);
     const match = beforeCursor.match(/(^|\s)@([^\s@]*)$/u);
@@ -241,14 +421,9 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
 
     const query = match[2] ?? "";
     const start = beforeCursor.length - query.length - 1;
-
     if (start < 0) return null;
 
-    return {
-      query,
-      start,
-      end: safeCursor,
-    };
+    return { query, start, end: safeCursor };
   }, [cursorPosition, draft, selectedRoom]);
 
   const mentionSuggestions = useMemo(() => {
@@ -267,10 +442,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
 
   const visibleRooms = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) {
-      return rooms;
-    }
-
+    if (!term) return rooms;
     return rooms.filter((room) => {
       const label = roomLabel(room, session.user.id).toLowerCase();
       const last = room.lastMessage?.body?.toLowerCase() ?? "";
@@ -284,7 +456,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
   const visibleContacts = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return contacts;
-    return contacts.filter((c) => c.name.toLowerCase().includes(term));
+    return contacts.filter((contact) => contact.name.toLowerCase().includes(term));
   }, [contacts, search]);
 
   const resetComposeState = useCallback(() => {
@@ -295,36 +467,93 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     setCursorPosition(0);
   }, []);
 
-  const loadRooms = useCallback(async () => {
-    const response = await apiRequest<RoomsResponse>("/chat/rooms", {
-      ...authOptions(),
-    });
-    setRooms(response.items);
-
-    setSelectedRoomId((current) => {
-      if (current && response.items.some((room) => room.id === current)) {
-        return current;
+  const loadRooms = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (!options?.force) {
+        const cachedRooms = chatCache.getRooms<ChatRoomItem>();
+        if (cachedRooms) {
+          setRooms(cachedRooms);
+          return cachedRooms;
+        }
       }
-      return response.items[0]?.id ?? null;
-    });
-  }, [authOptions]);
 
-  const loadContacts = useCallback(async () => {
-    const response = await apiRequest<ContactListResponse>("/chat/contacts", {
-      ...authOptions(),
-    });
-    setContacts(response.items);
-  }, [authOptions]);
-
-  const loadMessages = useCallback(
-    async (roomId: string) => {
-      const response = await apiRequest<RoomMessagesResponse>(`/chat/rooms/${roomId}/messages`, {
+      const response = await apiRequest<RoomsResponse>("/chat/rooms", {
         ...authOptions(),
       });
-      setMessages(response.items);
+      chatCache.setRooms(response.items);
+      setRooms(response.items);
       return response.items;
     },
     [authOptions]
+  );
+
+  const loadContacts = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (!options?.force) {
+        const cachedContacts = chatCache.getContacts<ChatUser>();
+        if (cachedContacts) {
+          setContacts(cachedContacts);
+          return cachedContacts;
+        }
+      }
+
+      const response = await apiRequest<ContactListResponse>("/chat/contacts", {
+        ...authOptions(),
+      });
+      chatCache.setContacts(response.items);
+      setContacts(response.items);
+      return response.items;
+    },
+    [authOptions]
+  );
+
+  const fetchRoomMessages = useCallback(
+    async (roomId: string, options?: { force?: boolean }) => {
+      if (!options?.force) {
+        const cachedMessages = chatCache.getMessages<ChatMessageVm>(roomId);
+        if (cachedMessages) return cachedMessages;
+      }
+
+      const inflight = inflightMessagesRef.current.get(roomId);
+      if (inflight) return inflight;
+
+      const request = apiRequest<RoomMessagesResponse>(`/chat/rooms/${roomId}/messages`, {
+        ...authOptions(),
+      })
+        .then((response) => {
+          const normalized = toMessageVms(response.items);
+          chatCache.setMessages(roomId, normalized);
+          return normalized;
+        })
+        .finally(() => {
+          inflightMessagesRef.current.delete(roomId);
+        });
+
+      inflightMessagesRef.current.set(roomId, request);
+      return request;
+    },
+    [authOptions]
+  );
+
+  const setRoomReadOptimistic = useCallback(
+    (roomId: string, readAt?: string) => {
+      setRoomsWithCache((prev) =>
+        prev.map((room) =>
+          room.id === roomId
+            ? {
+                ...room,
+                unreadCount: 0,
+                lastReadAt: readAt ?? room.lastReadAt ?? new Date().toISOString(),
+              }
+            : room
+        )
+      );
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("snt:chat-summary-invalidated"));
+      }
+    },
+    [setRoomsWithCache]
   );
 
   const markRead = useCallback(
@@ -335,27 +564,75 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
           ...authOptions(),
           body: readAt ? { readAt } : {},
         });
-
-        setRooms((prev) =>
-          prev.map((room) =>
-            room.id === roomId
-              ? {
-                  ...room,
-                  unreadCount: 0,
-                  lastReadAt: readAt ?? new Date().toISOString(),
-                }
-              : room
-          )
-        );
-
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("snt:chat-summary-invalidated"));
-        }
+        setRoomReadOptimistic(roomId, readAt);
       } catch (_error) {
         // Non-critical.
       }
     },
-    [authOptions]
+    [authOptions, setRoomReadOptimistic]
+  );
+
+  const prefetchRoomMessages = useCallback(
+    (roomId: string) => {
+      void fetchRoomMessages(roomId).catch(() => {
+        // Non-critical prefetch.
+      });
+    },
+    [fetchRoomMessages]
+  );
+
+  const loadSelectedRoomMessages = useCallback(
+    async (roomId: string) => {
+      const requestSeq = activeRequestSeqRef.current + 1;
+      activeRequestSeqRef.current = requestSeq;
+      setError(null);
+
+      const cached = chatCache.getMessages<ChatMessageVm>(roomId);
+      if (cached) {
+        setMessages(cached);
+        setHasLoadedCurrentRoom(true);
+        setIsRoomSwitching(false);
+        const lastCached = cached.at(-1)?.createdAt;
+        setRoomReadOptimistic(roomId, lastCached);
+        void markRead(roomId, lastCached);
+
+        try {
+          const refreshed = await fetchRoomMessages(roomId, { force: true });
+          if (activeRequestSeqRef.current !== requestSeq || selectedRoomIdRef.current !== roomId) return;
+          setMessages(refreshed);
+          setHasLoadedCurrentRoom(true);
+          const lastRefreshed = refreshed.at(-1)?.createdAt;
+          setRoomReadOptimistic(roomId, lastRefreshed);
+          void markRead(roomId, lastRefreshed);
+        } catch (requestError) {
+          if (activeRequestSeqRef.current !== requestSeq || selectedRoomIdRef.current !== roomId) return;
+          setError(normalizeError(requestError, "Не удалось обновить сообщения"));
+        }
+        return;
+      }
+
+      setIsRoomSwitching(true);
+      setHasLoadedCurrentRoom(false);
+      setMessages([]);
+
+      try {
+        const loaded = await fetchRoomMessages(roomId, { force: true });
+        if (activeRequestSeqRef.current !== requestSeq || selectedRoomIdRef.current !== roomId) return;
+        setMessages(loaded);
+        setHasLoadedCurrentRoom(true);
+        const lastLoaded = loaded.at(-1)?.createdAt;
+        setRoomReadOptimistic(roomId, lastLoaded);
+        void markRead(roomId, lastLoaded);
+      } catch (requestError) {
+        if (activeRequestSeqRef.current !== requestSeq || selectedRoomIdRef.current !== roomId) return;
+        setError(normalizeError(requestError, "Не удалось загрузить сообщения"));
+      } finally {
+        if (activeRequestSeqRef.current === requestSeq && selectedRoomIdRef.current === roomId) {
+          setIsRoomSwitching(false);
+        }
+      }
+    },
+    [fetchRoomMessages, markRead, setRoomReadOptimistic]
   );
 
   const focusDraft = useCallback((cursor?: number) => {
@@ -369,42 +646,87 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     }
   }, []);
 
+  const selectRoom = useCallback(
+    (roomId: string) => {
+      setSelectedRoomId(roomId);
+      chatCache.lastSelectedRoomId = roomId;
+      if (compact) setView("chat");
+    },
+    [compact]
+  );
+
   useEffect(() => {
     if (!open) return;
-
+    chatCache.ensureTenant(session.tenantSlug);
     setError(null);
-    setLoading(true);
+
+    const hasRooms = Boolean(chatCache.getRooms<ChatRoomItem>());
+    const hasContacts = Boolean(chatCache.getContacts<ChatUser>());
+    setIsBootstrapping(!(hasRooms && hasContacts));
+
+    let cancelled = false;
     Promise.all([loadRooms(), loadContacts()])
-      .catch((err) => setError(normalizeError(err, "Не удалось загрузить чат")))
-      .finally(() => setLoading(false));
-  }, [open, loadRooms, loadContacts]);
+      .catch((requestError) => {
+        if (cancelled) return;
+        setError(normalizeError(requestError, "Не удалось загрузить чат"));
+      })
+      .finally(() => {
+        if (!cancelled) setIsBootstrapping(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, loadRooms, loadContacts, session.tenantSlug]);
 
   useEffect(() => {
     if (!open) return;
-    if (!selectedRoomId) return;
+    if (rooms.length === 0) {
+      setSelectedRoomId(null);
+      setMessages([]);
+      setHasLoadedCurrentRoom(false);
+      return;
+    }
 
+    setSelectedRoomId((current) => {
+      if (current && rooms.some((room) => room.id === current)) return current;
+      const preferred = chatCache.lastSelectedRoomId;
+      if (preferred && rooms.some((room) => room.id === preferred)) return preferred;
+      return rooms[0].id;
+    });
+  }, [open, rooms]);
+
+  useEffect(() => {
+    if (!open || !selectedRoomId) return;
     resetComposeState();
     pinnedToBottomRef.current = true;
-    setError(null);
-    setLoading(true);
-    loadMessages(selectedRoomId)
-      .then((items) => {
-        const last = items.at(-1)?.createdAt;
-        return markRead(selectedRoomId, last);
-      })
-      .catch((err) => setError(normalizeError(err, "Не удалось загрузить сообщения")))
-      .finally(() => setLoading(false));
-  }, [open, selectedRoomId, loadMessages, markRead, resetComposeState]);
+    void loadSelectedRoomMessages(selectedRoomId);
+  }, [open, selectedRoomId, loadSelectedRoomMessages, resetComposeState]);
 
   useEffect(() => {
-    if (!open) return;
-    if (!showChat) return;
+    if (!open || rooms.length === 0 || typeof window === "undefined") return;
 
-    const el = messagesRef.current;
-    if (!el) return;
+    const candidates = rooms
+      .filter((room) => room.id !== selectedRoomId)
+      .slice(0, 2)
+      .map((room) => room.id);
+    if (candidates.length === 0) return;
 
+    const timeoutId = window.setTimeout(() => {
+      candidates.forEach((roomId) => prefetchRoomMessages(roomId));
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [open, rooms, selectedRoomId, prefetchRoomMessages]);
+
+  useEffect(() => {
+    if (!open || !showChat) return;
+    const element = messagesRef.current;
+    if (!element) return;
     if (pinnedToBottomRef.current) {
-      el.scrollTop = el.scrollHeight;
+      element.scrollTop = element.scrollHeight;
     }
   }, [messages, open, showChat]);
 
@@ -414,176 +736,253 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
     focusDraft(editingMessage.body.length);
   }, [editingMessage, focusDraft]);
 
-  const applyMention = (user: ChatUser) => {
-    if (!mentionContext) return;
+  const applyMention = useCallback(
+    (user: ChatUser) => {
+      if (!mentionContext) return;
+      const alias = mentionAlias(user);
+      const token = `@${alias}`;
+      const nextDraft = `${draft.slice(0, mentionContext.start)}${token} ${draft.slice(mentionContext.end)}`;
+      const nextCursor = mentionContext.start + token.length + 1;
+      setDraft(nextDraft);
+      window.requestAnimationFrame(() => focusDraft(nextCursor));
+    },
+    [draft, focusDraft, mentionContext]
+  );
 
-    const alias = mentionAlias(user);
-    const token = `@${alias}`;
-    const nextDraft = `${draft.slice(0, mentionContext.start)}${token} ${draft.slice(mentionContext.end)}`;
-    const nextCursor = mentionContext.start + token.length + 1;
+  const send = useCallback(
+    async (event?: FormEvent) => {
+      if (event) event.preventDefault();
+      if (!selectedRoomId) return;
 
-    setDraft(nextDraft);
-    window.requestAnimationFrame(() => focusDraft(nextCursor));
-  };
+      const body = draft.trim();
+      if (!body) return;
 
-  const send = async (event?: FormEvent) => {
-    if (event) event.preventDefault();
-    if (!selectedRoomId) return;
+      const roomId = selectedRoomId;
+      setError(null);
+      setIsSending(true);
 
-    const body = draft.trim();
-    if (!body) return;
+      try {
+        if (editingMessageId) {
+          await apiRequest(`/chat/messages/${editingMessageId}`, {
+            method: "PATCH",
+            ...authOptions(),
+            body: { body },
+          });
+        } else {
+          await apiRequest(`/chat/rooms/${roomId}/messages`, {
+            method: "POST",
+            ...authOptions(),
+            body: {
+              body,
+              replyToMessageId: replyTo?.id,
+            },
+          });
+        }
 
-    setError(null);
-    setLoading(true);
+        pinnedToBottomRef.current = true;
+        resetComposeState();
 
-    try {
-      if (editingMessageId) {
-        await apiRequest(`/chat/messages/${editingMessageId}`, {
-          method: "PATCH",
+        await loadRooms({ force: true });
+        const refreshed = await fetchRoomMessages(roomId, { force: true });
+        if (selectedRoomIdRef.current === roomId) {
+          setMessages(refreshed);
+          setHasLoadedCurrentRoom(true);
+          const last = refreshed.at(-1)?.createdAt;
+          setRoomReadOptimistic(roomId, last);
+          void markRead(roomId, last);
+        }
+      } catch (requestError) {
+        setError(normalizeError(requestError, editingMessageId ? "Не удалось сохранить сообщение" : "Не удалось отправить сообщение"));
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [
+      authOptions,
+      draft,
+      editingMessageId,
+      fetchRoomMessages,
+      loadRooms,
+      markRead,
+      replyTo?.id,
+      resetComposeState,
+      selectedRoomId,
+      setRoomReadOptimistic,
+    ]
+  );
+
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!selectedRoomId) return;
+      const roomId = selectedRoomId;
+      setError(null);
+      setIsMutatingMessage(true);
+
+      try {
+        await apiRequest(`/chat/messages/${messageId}`, {
+          method: "DELETE",
           ...authOptions(),
-          body: {
-            body,
-          },
         });
-      } else {
-        await apiRequest(`/chat/rooms/${selectedRoomId}/messages`, {
+
+        if (editingMessageId === messageId) {
+          setEditingMessageId(null);
+          setDraft("");
+        }
+        if (replyTo?.id === messageId) {
+          setReplyTo(null);
+        }
+
+        setActionMessageId(null);
+        await loadRooms({ force: true });
+        const refreshed = await fetchRoomMessages(roomId, { force: true });
+        if (selectedRoomIdRef.current === roomId) {
+          setMessages(refreshed);
+          setHasLoadedCurrentRoom(true);
+          const last = refreshed.at(-1)?.createdAt;
+          setRoomReadOptimistic(roomId, last);
+          void markRead(roomId, last);
+        }
+      } catch (requestError) {
+        setError(normalizeError(requestError, "Не удалось удалить сообщение"));
+      } finally {
+        setIsMutatingMessage(false);
+      }
+    },
+    [
+      authOptions,
+      editingMessageId,
+      fetchRoomMessages,
+      loadRooms,
+      markRead,
+      replyTo?.id,
+      selectedRoomId,
+      setRoomReadOptimistic,
+    ]
+  );
+
+  const openDirect = useCallback(
+    async (userId: number) => {
+      setError(null);
+      setIsOpeningDirect(true);
+
+      try {
+        const response = await apiRequest<DirectRoomResponse>(`/chat/direct/${userId}`, {
+          method: "POST",
+          ...authOptions(),
+          body: {},
+        });
+
+        await loadRooms({ force: true });
+        if (response.room?.id) {
+          prefetchRoomMessages(response.room.id);
+          selectRoom(response.room.id);
+          setMode("topics");
+          setView("chat");
+        }
+      } catch (requestError) {
+        setError(normalizeError(requestError, "Не удалось открыть диалог"));
+      } finally {
+        setIsOpeningDirect(false);
+      }
+    },
+    [authOptions, loadRooms, prefetchRoomMessages, selectRoom]
+  );
+
+  const createTopic = useCallback(
+    async (event: FormEvent) => {
+      event.preventDefault();
+      const name = newTopicName.trim();
+      if (!name) return;
+
+      setError(null);
+      setIsCreatingTopic(true);
+      try {
+        await apiRequest("/chat/rooms", {
           method: "POST",
           ...authOptions(),
           body: {
-            body,
-            replyToMessageId: replyTo?.id,
+            name,
+            isPrivate: false,
           },
         });
+        setNewTopicName("");
+        await loadRooms({ force: true });
+      } catch (requestError) {
+        setError(normalizeError(requestError, "Не удалось создать топик"));
+      } finally {
+        setIsCreatingTopic(false);
       }
+    },
+    [authOptions, loadRooms, newTopicName]
+  );
 
-      pinnedToBottomRef.current = true;
-      resetComposeState();
-      await Promise.all([loadRooms(), loadMessages(selectedRoomId)]);
-    } catch (err) {
-      setError(normalizeError(err, editingMessageId ? "Не удалось сохранить сообщение" : "Не удалось отправить сообщение"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteMessage = async (messageId: string) => {
-    if (!selectedRoomId) return;
-
-    setError(null);
-    setLoading(true);
-    try {
-      await apiRequest(`/chat/messages/${messageId}`, {
-        method: "DELETE",
-        ...authOptions(),
-      });
-
-      if (editingMessageId === messageId) {
-        setEditingMessageId(null);
-        setDraft("");
-      }
-
-      if (replyTo?.id === messageId) {
-        setReplyTo(null);
-      }
-
+  const startReply = useCallback(
+    (message: ChatMessageVm) => {
+      setEditingMessageId(null);
+      setReplyTo(message);
       setActionMessageId(null);
-      await Promise.all([loadRooms(), loadMessages(selectedRoomId)]);
-    } catch (err) {
-      setError(normalizeError(err, "Не удалось удалить сообщение"));
-    } finally {
-      setLoading(false);
-    }
-  };
+      focusDraft();
+    },
+    [focusDraft]
+  );
 
-  const openDirect = async (userId: number) => {
-    setError(null);
-    setLoading(true);
-
-    try {
-      const response = await apiRequest<DirectRoomResponse>(`/chat/direct/${userId}`, {
-        method: "POST",
-        ...authOptions(),
-        body: {},
-      });
-
-      await loadRooms();
-
-      if (response.room?.id) {
-        setSelectedRoomId(response.room.id);
-        setMode("topics");
-        setView("chat");
-      }
-    } catch (err) {
-      setError(normalizeError(err, "Не удалось открыть диалог"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createTopic = async (event: FormEvent) => {
-    event.preventDefault();
-    const name = newTopicName.trim();
-    if (!name) return;
-
-    setError(null);
-    setLoading(true);
-    try {
-      await apiRequest("/chat/rooms", {
-        method: "POST",
-        ...authOptions(),
-        body: {
-          name,
-          isPrivate: false,
-        },
-      });
-      setNewTopicName("");
-      await loadRooms();
-    } catch (err) {
-      setError(normalizeError(err, "Не удалось создать топик"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startReply = (message: ChatMessage) => {
-    setEditingMessageId(null);
-    setReplyTo(message);
-    setActionMessageId(null);
-    focusDraft();
-  };
-
-  const startEdit = (message: ChatMessage) => {
+  const startEdit = useCallback((message: ChatMessageVm) => {
     setReplyTo(null);
     setEditingMessageId(message.id);
     setActionMessageId(null);
-  };
+  }, []);
 
-  const cancelDraftMode = () => {
+  const cancelDraftMode = useCallback(() => {
     setReplyTo(null);
     setEditingMessageId(null);
     setDraft("");
     focusDraft(0);
-  };
+  }, [focusDraft]);
 
-  const onMessageLongPressStart = (messageId: string) => {
+  const toggleActionMessage = useCallback((messageId: string) => {
+    setActionMessageId((current) => (current === messageId ? null : messageId));
+  }, []);
+
+  const onMessageLongPressStart = useCallback((messageId: string) => {
     if (longPressRef.current) {
       clearTimeout(longPressRef.current);
     }
-
     longPressRef.current = setTimeout(() => {
       setActionMessageId((current) => (current === messageId ? null : messageId));
     }, 420);
-  };
+  }, []);
 
-  const onMessageLongPressEnd = () => {
+  const onMessageLongPressEnd = useCallback(() => {
     if (!longPressRef.current) return;
     clearTimeout(longPressRef.current);
     longPressRef.current = null;
-  };
+  }, []);
 
   if (!open) return null;
 
   const title = selectedRoom && showChat ? roomLabel(selectedRoom, session.user.id) : "Сообщения";
+  const showMessagesSkeleton = isRoomSwitching && !hasLoadedCurrentRoom;
+  const showMessagesOverlay = isRoomSwitching;
+  const busyTopicActions = isBootstrapping || isCreatingTopic || isOpeningDirect;
+  const editCutoff = Date.now() - EDIT_WINDOW_MS;
+
+  const renderRoomRow = (room: ChatRoomItem, avatar: string, label: string) => (
+    <button
+      key={room.id}
+      type="button"
+      className={room.id === selectedRoomId ? "chat-row active" : "chat-row"}
+      onPointerDown={() => prefetchRoomMessages(room.id)}
+      onTouchStart={() => prefetchRoomMessages(room.id)}
+      onClick={() => selectRoom(room.id)}
+    >
+      <span className="chat-avatar">{avatar}</span>
+      <span className="chat-meta">
+        <span className="chat-title">{label}</span>
+        <span className="chat-sub">{room.lastMessage ? room.lastMessage.body : "Нет сообщений"}</span>
+      </span>
+      {room.unreadCount > 0 ? <span className="chat-unread">{room.unreadCount > 99 ? "99+" : room.unreadCount}</span> : null}
+    </button>
+  );
 
   const chrome = (
     <div
@@ -689,7 +1088,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                     onChange={(event) => setNewTopicName(event.target.value)}
                     placeholder="Новый топик (например, Дороги)"
                   />
-                  <button type="submit" className="primary-button" disabled={loading}>
+                  <button type="submit" className="primary-button" disabled={busyTopicActions}>
                     +
                   </button>
                 </form>
@@ -709,14 +1108,14 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                       type="button"
                       className="chat-row"
                       onClick={() => openDirect(user.id)}
-                      disabled={loading}
+                      disabled={isOpeningDirect}
                     >
                       <span className="chat-avatar">{user.name.slice(0, 1).toUpperCase()}</span>
                       <span className="chat-meta">
                         <span className="chat-title">{user.name}</span>
                         <span className="chat-sub">
                           {user.ownedPlots && user.ownedPlots.length > 0
-                            ? `участки: ${user.ownedPlots.map((p) => `№${p.number}`).join(", ")}`
+                            ? `участки: ${user.ownedPlots.map((plot) => `№${plot.number}`).join(", ")}`
                             : "без участка"}
                         </span>
                       </span>
@@ -727,49 +1126,14 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                 <>
                   <p className="messenger-section">Топики</p>
                   {visibleTopics.length === 0 ? <p className="muted">Топиков пока нет.</p> : null}
-                  {visibleTopics.map((room) => (
-                    <button
-                      key={room.id}
-                      type="button"
-                      className={room.id === selectedRoomId ? "chat-row active" : "chat-row"}
-                      onClick={() => {
-                        setSelectedRoomId(room.id);
-                        if (compact) setView("chat");
-                      }}
-                    >
-                      <span className="chat-avatar">#</span>
-                      <span className="chat-meta">
-                        <span className="chat-title">{room.name}</span>
-                        <span className="chat-sub">{room.lastMessage ? room.lastMessage.body : "Нет сообщений"}</span>
-                      </span>
-                      {room.unreadCount > 0 ? (
-                        <span className="chat-unread">{room.unreadCount > 99 ? "99+" : room.unreadCount}</span>
-                      ) : null}
-                    </button>
-                  ))}
+                  {visibleTopics.map((room) => renderRoomRow(room, "#", room.name))}
 
                   <p className="messenger-section">Личные</p>
                   {visibleDirects.length === 0 ? <p className="muted">Личных чатов пока нет.</p> : null}
-                  {visibleDirects.map((room) => (
-                    <button
-                      key={room.id}
-                      type="button"
-                      className={room.id === selectedRoomId ? "chat-row active" : "chat-row"}
-                      onClick={() => {
-                        setSelectedRoomId(room.id);
-                        if (compact) setView("chat");
-                      }}
-                    >
-                      <span className="chat-avatar">{roomLabel(room, session.user.id).slice(0, 1).toUpperCase()}</span>
-                      <span className="chat-meta">
-                        <span className="chat-title">{roomLabel(room, session.user.id)}</span>
-                        <span className="chat-sub">{room.lastMessage ? room.lastMessage.body : "Нет сообщений"}</span>
-                      </span>
-                      {room.unreadCount > 0 ? (
-                        <span className="chat-unread">{room.unreadCount > 99 ? "99+" : room.unreadCount}</span>
-                      ) : null}
-                    </button>
-                  ))}
+                  {visibleDirects.map((room) => {
+                    const label = roomLabel(room, session.user.id);
+                    return renderRoomRow(room, label.slice(0, 1).toUpperCase(), label);
+                  })}
                 </>
               )}
             </div>
@@ -781,7 +1145,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
             {selectedRoomId ? (
               <>
                 <div
-                  className="messenger-messages"
+                  className={showMessagesOverlay ? "messenger-messages is-loading" : "messenger-messages"}
                   ref={messagesRef}
                   onMouseDown={(event) => {
                     if (event.target === event.currentTarget) {
@@ -789,130 +1153,65 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                     }
                   }}
                   onScroll={() => {
-                    const el = messagesRef.current;
-                    if (!el) return;
-                    const delta = el.scrollHeight - (el.scrollTop + el.clientHeight);
+                    const element = messagesRef.current;
+                    if (!element) return;
+                    const delta = element.scrollHeight - (element.scrollTop + element.clientHeight);
                     pinnedToBottomRef.current = delta < 140;
                   }}
                 >
-                  {messages.length === 0 ? <p className="muted">Сообщений пока нет.</p> : null}
-                  {messages.map((message, index) => {
-                    const prev = messages[index - 1];
-                    const mine = message.author.id === session.user.id;
-                    const sameAuthor = prev?.author.id === message.author.id;
-                    const withinWindow =
-                      prev &&
-                      new Date(message.createdAt).getTime() - new Date(prev.createdAt).getTime() <
-                        3 * 60 * 1000;
-                    const grouped = Boolean(sameAuthor && withinWindow);
-                    const isTopic = Boolean(selectedRoom && !selectedRoom.isPrivate);
-                    const showAuthor = isTopic && !mine && !grouped;
-                    const showAvatar = isTopic && !mine && !grouped;
-                    const needsAvatarSpacer = isTopic && !mine && grouped;
-                    const timeShort = new Date(message.createdAt).toLocaleTimeString("ru-RU", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
-                    const timeFull = new Date(message.createdAt).toLocaleString("ru-RU");
-                    const actionOpen = actionMessageId === message.id;
-                    const canReply = !message.isDeleted;
-                    const canEdit =
-                      !message.isDeleted &&
-                      mine &&
-                      Date.now() - new Date(message.createdAt).getTime() <= EDIT_WINDOW_MS;
-                    const canDelete = !message.isDeleted && (mine || session.user.role === "CHAIRMAN");
+                  {showMessagesSkeleton ? (
+                    <div className="messages-skeleton" aria-hidden="true">
+                      <span className="messages-skeleton-row other" />
+                      <span className="messages-skeleton-row other short" />
+                      <span className="messages-skeleton-row mine" />
+                      <span className="messages-skeleton-row mine short" />
+                    </div>
+                  ) : null}
 
-                    const bubbleBody = (
-                      <>
-                        {message.replyTo ? (
-                          <div className="msg-reply">
-                            <p className="msg-reply-author">{message.replyTo.authorName}</p>
-                            <p className="msg-reply-body">{message.replyTo.bodyPreview}</p>
-                          </div>
-                        ) : null}
-                        {showAuthor ? <p className="msg-author">{message.author.name}</p> : null}
-                        <p className="msg-body">{renderBodyWithMentions(message.body)}</p>
-                        <div className="msg-meta-row">
-                          <p className="msg-time" title={timeFull}>
-                            {timeShort}
-                            {message.isEdited ? " · изм." : ""}
-                          </p>
-                          {showInlineMessageActions && (canReply || canEdit || canDelete) && !message.isDeleted ? (
-                            <button
-                              type="button"
-                              className="msg-more"
-                              onClick={() => setActionMessageId((current) => (current === message.id ? null : message.id))}
-                              aria-label="Действия с сообщением"
-                              title="Действия"
-                            >
-                              •••
-                            </button>
-                          ) : null}
-                        </div>
-                        {actionOpen ? (
-                          <div className="msg-actions-menu">
-                            {canReply ? (
-                              <button type="button" onClick={() => startReply(message)}>
-                                <CornerUpLeft size={14} /> Ответить
-                              </button>
-                            ) : null}
-                            {canEdit ? (
-                              <button type="button" onClick={() => startEdit(message)}>
-                                <Pencil size={14} /> Редактировать
-                              </button>
-                            ) : null}
-                            {canDelete ? (
-                              <button type="button" onClick={() => deleteMessage(message.id)}>
-                                <Trash2 size={14} /> Удалить
-                              </button>
-                            ) : null}
-                          </div>
-                        ) : null}
-                      </>
-                    );
+                  {!showMessagesSkeleton && messages.length === 0 ? <p className="muted">Сообщений пока нет.</p> : null}
 
-                    return (
-                      <div
-                        key={message.id}
-                        className={["msg-row", mine ? "mine" : "", grouped ? "grouped" : ""]
-                          .filter(Boolean)
-                          .join(" ")}
-                        onTouchStart={() => onMessageLongPressStart(message.id)}
-                        onTouchEnd={onMessageLongPressEnd}
-                        onTouchMove={onMessageLongPressEnd}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          setActionMessageId((current) => (current === message.id ? null : message.id));
-                        }}
-                      >
-                        {!mine && isTopic ? (
-                          <div className="msg-stack">
-                            {showAvatar ? (
-                              <span className="msg-avatar-small" aria-hidden="true">
-                                {message.author.name.slice(0, 1).toUpperCase()}
-                              </span>
-                            ) : needsAvatarSpacer ? (
-                              <span className="msg-avatar-spacer" aria-hidden="true" />
-                            ) : null}
+                  {!showMessagesSkeleton
+                    ? messages.map((message, index) => {
+                        const previous = messages[index - 1];
+                        const mine = message.author.id === session.user.id;
+                        const sameAuthor = previous?.author.id === message.author.id;
+                        const grouped = Boolean(sameAuthor && previous && message.createdAtMs - previous.createdAtMs < GROUP_WINDOW_MS);
+                        const isTopic = Boolean(selectedRoom && !selectedRoom.isPrivate);
+                        const showAuthor = isTopic && !mine && !grouped;
+                        const showAvatar = isTopic && !mine && !grouped;
+                        const needsAvatarSpacer = isTopic && !mine && grouped;
+                        const actionOpen = actionMessageId === message.id;
+                        const canReply = !message.isDeleted;
+                        const canEdit = !message.isDeleted && mine && message.createdAtMs >= editCutoff;
+                        const canDelete = !message.isDeleted && (mine || session.user.role === "CHAIRMAN");
 
-                            <div
-                              className={["msg-bubble", grouped ? "grouped" : ""].filter(Boolean).join(" ")}
-                            >
-                              {bubbleBody}
-                            </div>
-                          </div>
-                        ) : (
-                          <div
-                            className={["msg-bubble", mine ? "mine" : "", grouped ? "grouped" : ""]
-                              .filter(Boolean)
-                              .join(" ")}
-                          >
-                            {bubbleBody}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                        return (
+                          <MessageItem
+                            key={message.id}
+                            message={message}
+                            mine={mine}
+                            grouped={grouped}
+                            isTopic={isTopic}
+                            showAuthor={showAuthor}
+                            showAvatar={showAvatar}
+                            needsAvatarSpacer={needsAvatarSpacer}
+                            showInlineMessageActions={showInlineMessageActions}
+                            actionOpen={actionOpen}
+                            canReply={canReply}
+                            canEdit={canEdit}
+                            canDelete={canDelete}
+                            onToggleAction={toggleActionMessage}
+                            onReply={startReply}
+                            onEdit={startEdit}
+                            onDelete={deleteMessage}
+                            onLongPressStart={onMessageLongPressStart}
+                            onLongPressEnd={onMessageLongPressEnd}
+                          />
+                        );
+                      })
+                    : null}
+
+                  {showMessagesOverlay ? <div className="messages-loading-overlay">Загрузка…</div> : null}
                 </div>
 
                 <form className="messenger-compose" onSubmit={send}>
@@ -920,9 +1219,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                     <div className="compose-mode">
                       <p className="compose-mode-title">{editingMessageId ? "Редактирование" : "Ответ"}</p>
                       <p className="compose-mode-body">
-                        {editingMessageId
-                          ? editingMessage?.body ?? "Сообщение"
-                          : `${replyTo?.author.name ?? ""}: ${replyTo?.body ?? ""}`}
+                        {editingMessageId ? editingMessage?.body ?? "Сообщение" : `${replyTo?.author.name ?? ""}: ${replyTo?.body ?? ""}`}
                       </p>
                       <button type="button" className="icon-button" onClick={cancelDraftMode} aria-label="Сбросить">
                         <X size={14} />
@@ -944,7 +1241,7 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
-                        send();
+                        void send();
                       }
                     }}
                   />
@@ -960,14 +1257,14 @@ export function MessengerDrawer(props: MessengerDrawerProps) {
                     </div>
                   ) : null}
 
-                  <button className="primary-button" type="submit" disabled={loading}>
-                    {editingMessageId ? "Сохранить" : "Отправить"}
+                  <button className="primary-button" type="submit" disabled={isSending || isMutatingMessage || isRoomSwitching}>
+                    {isSending ? "Отправка..." : editingMessageId ? "Сохранить" : "Отправить"}
                   </button>
                 </form>
               </>
             ) : (
               <div className="messenger-empty">
-                <p className="muted">Выберите чат или откройте контакт.</p>
+                <p className="muted">{isBootstrapping ? "Загружаем список чатов..." : "Выберите чат или откройте контакт."}</p>
               </div>
             )}
           </section>

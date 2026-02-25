@@ -86,6 +86,14 @@ export const PortalShell = ({ children, title, subtitle, hideHeader = false }: P
     }
   }, [pathname]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!window.matchMedia("(max-width: 980px)").matches) return;
+    if (pathname === "/forum") return;
+
+    router.prefetch("/forum");
+  }, [pathname, router]);
+
   if (!ready || !session) {
     return <div className="center-screen">Загрузка...</div>;
   }
