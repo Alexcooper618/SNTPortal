@@ -81,6 +81,30 @@ services:
       - traefik.http.routers.snt-web.tls.certresolver=le
       - traefik.http.services.snt-web.loadbalancer.server.port=3001
 
+  landing:
+    build:
+      context: .
+      dockerfile: Dockerfile.landing
+    image: sntportal-landing
+    restart: unless-stopped
+    environment:
+      LANDING_BASE_URL: ${LANDING_BASE_URL:-https://snt-portal.ru}
+      APP_LOGIN_URL: ${APP_LOGIN_URL:-https://app.snt-portal.ru/login}
+      DEMO_EMAIL: ${DEMO_EMAIL:-hello@snt-portal.ru}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.snt-landing-root.entrypoints=websecure
+      - traefik.http.routers.snt-landing-root.rule=Host(`${LANDING_DOMAIN:-snt-portal.ru}`)
+      - traefik.http.routers.snt-landing-root.tls=true
+      - traefik.http.routers.snt-landing-root.tls.certresolver=le
+      - traefik.http.routers.snt-landing-root.service=snt-landing
+      - traefik.http.routers.snt-landing-www.entrypoints=websecure
+      - traefik.http.routers.snt-landing-www.rule=Host(`${LANDING_WWW_DOMAIN:-www.snt-portal.ru}`)
+      - traefik.http.routers.snt-landing-www.tls=true
+      - traefik.http.routers.snt-landing-www.tls.certresolver=le
+      - traefik.http.routers.snt-landing-www.service=snt-landing
+      - traefik.http.services.snt-landing.loadbalancer.server.port=3002
+
 volumes:
   postgres_data:
   letsencrypt:

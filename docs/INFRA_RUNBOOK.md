@@ -4,6 +4,7 @@
 
 ## 1) Текущая топология
 
+- Домен лендинга: `snt-portal.ru` (`www.snt-portal.ru`)
 - Домен приложения: `app.snt-portal.ru`
 - Домен API: `api.snt-portal.ru`
 
@@ -14,6 +15,7 @@
 - Путь проекта: `/opt/snt-app/SNTPortal`
 - Основные сервисы (`docker compose`):
   - `traefik`
+  - `landing`
   - `web`
   - `api`
 
@@ -22,6 +24,13 @@
 - Назначение: PostgreSQL
 - IP: `155.212.221.8`
 - Подключение из `DATABASE_URL` в `.env` на VM-1
+
+## 1.1) DNS (проверяем перед запуском лендинга)
+
+- `A snt-portal.ru -> 217.114.15.55`
+- `A www.snt-portal.ru -> 217.114.15.55`
+- `A app.snt-portal.ru -> 217.114.15.55`
+- `A api.snt-portal.ru -> 217.114.15.55`
 
 ## 2) Source of truth для конфигурации
 
@@ -42,6 +51,9 @@
 - `CORS_ORIGIN=https://app.snt-portal.ru`
 - `NEXT_PUBLIC_API_URL=https://api.snt-portal.ru/api/v1`
 - `SNT_API_URL=https://api.snt-portal.ru/api/v1`
+- `LANDING_BASE_URL=https://snt-portal.ru`
+- `APP_LOGIN_URL=https://app.snt-portal.ru/login`
+- `DEMO_EMAIL`
 - `DEFAULT_TENANT_SLUG=rassvet`
 - `PLATFORM_ADMIN_PHONE`
 - `PLATFORM_ADMIN_PASSWORD`
@@ -51,7 +63,20 @@
 
 Все команды выполняются на VM-1 в `/opt/snt-app/SNTPortal`.
 
-### 4.1 Web-only деплой (дизайн/клиентские правки)
+### 4.1 Landing-only деплой (маркетинговый сайт)
+
+Этот режим не должен менять API и БД.
+
+```bash
+cd /opt/snt-app/SNTPortal
+git status
+git pull origin main
+docker compose build landing
+docker compose up -d --no-deps --force-recreate landing
+docker compose logs --tail=100 landing
+```
+
+### 4.2 Web-only деплой (дизайн/клиентские правки приложения)
 
 Этот режим не должен менять БД и API.
 
@@ -64,7 +89,7 @@ docker compose up -d --no-deps --force-recreate web
 docker compose logs --tail=100 web
 ```
 
-### 4.2 API + Web деплой
+### 4.3 API + Web деплой
 
 ```bash
 cd /opt/snt-app/SNTPortal
@@ -76,17 +101,20 @@ docker compose logs --tail=200 api
 docker compose logs --tail=100 web
 ```
 
-### 4.3 Full restart (runtime)
+### 4.4 Full restart (runtime)
 
 ```bash
 cd /opt/snt-app/SNTPortal
-docker compose up -d --force-recreate traefik api web
+docker compose up -d --force-recreate traefik landing web api
 docker compose ps
 ```
 
 ## 5) Быстрые проверки (smoke checks)
 
 ```bash
+curl -i https://snt-portal.ru
+curl -i https://www.snt-portal.ru
+curl -i https://app.snt-portal.ru
 curl -i https://api.snt-portal.ru/health
 curl -i https://api.snt-portal.ru/api/v1/auth/tenants
 ```
@@ -149,6 +177,7 @@ docker compose up -d --force-recreate traefik api web
 ## 8) Операционные правила (обязательные)
 
 - Перед любым `git pull` всегда запускать `git status`.
+- Для контент/дизайн-обновлений лендинга выполнять только landing-only деплой.
 - Для дизайн-правок выполнять только web-only деплой.
 - Не запускать на проде:
   - `prisma migrate reset`
@@ -162,6 +191,8 @@ docker compose up -d --force-recreate traefik api web
 ## 9) Проверка функциональности после релиза
 
 - Логин отображает список СНТ.
+- Лендинг открывается на `snt-portal.ru` и `www.snt-portal.ru`.
+- CTA "Войти в систему" на лендинге ведет на `https://app.snt-portal.ru/login`.
 - `ADMIN` после входа попадает на `/platform`.
 - На `/platform` доступны управление СНТ и пользователями.
 - На dashboard обычного пользователя отображается weather widget (если у СНТ заданы координаты).
