@@ -2,6 +2,7 @@ import Image from "next/image";
 
 const appLoginUrl = process.env.APP_LOGIN_URL ?? "https://app.snt-portal.ru/login";
 const demoEmail = process.env.DEMO_EMAIL ?? "hello@snt-portal.ru";
+const landingBaseUrl = (process.env.LANDING_BASE_URL ?? "https://snt-portal.ru").replace(/\/$/, "");
 const visuals = {
   hero: "/images/landing/hero-abstract-v1.webp",
   audience: "/images/landing/audience-abstract-v1.webp",
@@ -110,9 +111,62 @@ const faq = [
   },
 ];
 
+const structuredData = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": `${landingBaseUrl}/#organization`,
+    name: "SNTPortal",
+    url: `${landingBaseUrl}/`,
+    logo: `${landingBaseUrl}/favicon.ico`,
+    email: demoEmail,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${landingBaseUrl}/#website`,
+    name: "SNTPortal",
+    url: `${landingBaseUrl}/`,
+    inLanguage: "ru-RU",
+    publisher: {
+      "@id": `${landingBaseUrl}/#organization`,
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "SNTPortal",
+    url: `${landingBaseUrl}/`,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web Browser",
+    inLanguage: "ru-RU",
+    description:
+      "Единая цифровая платформа для СНТ: коммуникации, документы, голосования, обращения и платежи.",
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  },
+];
+
 export default function LandingPage() {
   return (
     <main className="site">
+      {structuredData.map((item, index) => (
+        <script
+          key={`ld-json-${index}`}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(item) }}
+        />
+      ))}
       <header className="topbar reveal">
         <a href="#top" className="brand">
           <span className="brand-dot" />

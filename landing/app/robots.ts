@@ -1,6 +1,13 @@
 import type { MetadataRoute } from "next";
 
-const baseUrl = process.env.LANDING_BASE_URL ?? "https://snt-portal.ru";
+const baseUrlRaw = process.env.LANDING_BASE_URL ?? "https://snt-portal.ru";
+const siteUrl = (() => {
+  try {
+    return new URL(baseUrlRaw);
+  } catch (_error) {
+    return new URL("https://snt-portal.ru");
+  }
+})();
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,7 +15,7 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: `${baseUrl.replace(/\/$/, "")}/sitemap.xml`,
-    host: baseUrl.replace(/\/$/, ""),
+    sitemap: `${siteUrl.origin}/sitemap.xml`,
+    host: siteUrl.host,
   };
 }

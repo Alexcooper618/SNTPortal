@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Цифровая платформа для управления коммуникациями и сервисами СНТ.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f6f0e4",
-    theme_color: "#0f3b33",
+    background_color: "#f3f7fc",
+    theme_color: "#005fcc",
     lang: "ru",
     icons: [
       {
