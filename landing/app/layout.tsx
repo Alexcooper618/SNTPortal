@@ -16,6 +16,7 @@ const displayFont = Source_Serif_4({
 
 const baseUrlRaw = process.env.LANDING_BASE_URL ?? "https://snt-portal.ru";
 const ogImagePath = "/images/landing/og-abstract-1200x630.png";
+const yandexVerificationDefault = "ba4cea3ee75f815b";
 const metadataBase = (() => {
   try {
     return new URL(baseUrlRaw);
@@ -93,7 +94,7 @@ export const metadata: Metadata = {
   },
   verification: {
     google: process.env.LANDING_GOOGLE_SITE_VERIFICATION,
-    yandex: process.env.LANDING_YANDEX_SITE_VERIFICATION,
+    yandex: process.env.LANDING_YANDEX_SITE_VERIFICATION ?? yandexVerificationDefault,
   },
   icons: {
     icon: "/favicon.ico",
