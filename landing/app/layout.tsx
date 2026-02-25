@@ -26,16 +26,16 @@ const metadataBase = (() => {
 
 export const metadata: Metadata = {
   metadataBase,
-  title: "SNTPortal",
+  title: "SNTPortal - цифровая платформа для СНТ",
   description:
-    "Цифровой портал для СНТ: коммуникации, документы, голосования, платежи, инциденты и единая админ-панель.",
+    "Современная платформа для СНТ: новости, документы, голосования, обращения, платежи и администрирование в едином контуре.",
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "SNTPortal - цифровой портал СНТ",
+    title: "SNTPortal - современная цифровая платформа для СНТ",
     description:
-      "Единая платформа для жителей и председателя: новости, документы, голосования, платежи, инциденты и чат.",
+      "Единая платформа для жителей и председателя: коммуникации, документы, голосования, платежи и контроль обращений.",
     url: "/",
     siteName: "SNTPortal",
     type: "website",
@@ -43,9 +43,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SNTPortal - цифровой портал СНТ",
+    title: "SNTPortal - современная платформа для СНТ",
     description:
-      "Единая цифровая платформа для управления коммуникацией, документами и сервисами внутри СНТ.",
+      "Цифровизация СНТ: единый контур управления коммуникациями, документами и сервисами.",
   },
   icons: {
     icon: "/favicon.ico",
@@ -53,7 +53,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f3b33",
+  themeColor: "#f4f7fb",
 };
 
 export default function RootLayout({

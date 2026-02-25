@@ -1,7 +1,12 @@
-import Link from "next/link";
-
 const appLoginUrl = process.env.APP_LOGIN_URL ?? "https://app.snt-portal.ru/login";
 const demoEmail = process.env.DEMO_EMAIL ?? "hello@snt-portal.ru";
+
+const navItems = [
+  { href: "#audience", label: "Для кого" },
+  { href: "#features", label: "Функции" },
+  { href: "#benefits", label: "Преимущества" },
+  { href: "#faq", label: "FAQ" },
+];
 
 const audience = [
   {
@@ -17,12 +22,48 @@ const audience = [
 ];
 
 const features = [
-  "Новости и уведомления по СНТ",
-  "Документы, протоколы и архив",
-  "Онлайн-голосования и собрания",
-  "Инциденты, обращения и контроль статуса",
-  "Карта участков, чаты и коммуникации",
-  "Платформенная админ-панель, погода и локальное время СНТ",
+  {
+    title: "Коммуникации",
+    description: "Новости, push-уведомления и чаты по СНТ без расфокуса по разным каналам.",
+  },
+  {
+    title: "Документы и голосования",
+    description: "Протоколы, архив, собрания и онлайн-голосования в едином юридически понятном контуре.",
+  },
+  {
+    title: "Инциденты и обращения",
+    description: "Прием, приоритизация и контроль выполнения заявок с прозрачным статусом для жителей.",
+  },
+  {
+    title: "Карта и платежи",
+    description: "Цифровая карта участков и управляемые регулярные платежи без ручного учета.",
+  },
+  {
+    title: "Платформенная админка",
+    description: "Управление пользователями и несколькими СНТ в отдельной панели администратора.",
+  },
+  {
+    title: "Локальная погода",
+    description: "Виджет времени и температуры по координатам СНТ прямо на главном экране.",
+  },
+];
+
+const metrics = [
+  {
+    value: "до 65%",
+    title: "быстрее обработка обращений",
+    note: "пример внедрения",
+  },
+  {
+    value: "до 80%",
+    title: "голосований в цифровом виде",
+    note: "пример внедрения",
+  },
+  {
+    value: "< 5 мин",
+    title: "публикация новостей и уведомлений",
+    note: "пример внедрения",
+  },
 ];
 
 const benefits = [
@@ -63,29 +104,85 @@ const faq = [
 
 export default function LandingPage() {
   return (
-    <main className="page">
-      <section className="hero reveal">
-        <p className="hero-kicker">Цифровой портал для СНТ</p>
-        <h1>SNTPortal объединяет жителей и председателя в одном рабочем контуре</h1>
-        <p className="hero-text">
-          Коммуникации, документы, голосования, платежи, инциденты и сервисные функции работают в единой платформе.
-          Без разрозненных чатов и ручного учета.
-        </p>
-        <div className="hero-actions">
-          <a href={`mailto:${demoEmail}`} className="btn btn-primary">
-            Запросить демо
-          </a>
-          <Link href={appLoginUrl} className="btn btn-secondary">
-            Войти в систему
-          </Link>
+    <main className="site">
+      <header className="topbar reveal">
+        <a href="#top" className="brand">
+          <span className="brand-dot" />
+          <span>SNTPortal</span>
+        </a>
+        <nav className="menu" aria-label="Навигация лендинга">
+          {navItems.map((item) => (
+            <a key={item.href} href={item.href}>
+              {item.label}
+            </a>
+          ))}
+        </nav>
+        <a href={appLoginUrl} className="btn btn-small btn-ghost">
+          Войти
+        </a>
+      </header>
+
+      <section className="hero reveal" id="top">
+        <div className="hero-copy">
+          <p className="eyebrow">Цифровая платформа для СНТ</p>
+          <h1>
+            Умный контур управления
+            <br />
+            для жителей и председателя
+          </h1>
+          <p className="lead">
+            SNTPortal объединяет коммуникации, документы, голосования, обращения и платежи в одном рабочем
+            пространстве. Меньше хаоса, больше управляемости.
+          </p>
+          <div className="actions">
+            <a href={`mailto:${demoEmail}`} className="btn btn-primary">
+              Запросить демо
+            </a>
+            <a href={appLoginUrl} className="btn btn-ghost">
+              Войти в систему
+            </a>
+          </div>
+        </div>
+
+        <div className="hero-frame" aria-hidden="true">
+          <div className="frame-surface">
+            <p className="surface-title">Контроль в реальном времени</p>
+            <ul className="surface-list">
+              <li>
+                <span>Новости</span>
+                <b>Опубликовано 2 мин назад</b>
+              </li>
+              <li>
+                <span>Голосование</span>
+                <b>Участие 74%</b>
+              </li>
+              <li>
+                <span>Инциденты</span>
+                <b>3 новых обращения</b>
+              </li>
+            </ul>
+          </div>
+          <div className="glass-chip chip-one">Погода СНТ +12°C</div>
+          <div className="glass-chip chip-two">Платежи синхронизированы</div>
         </div>
       </section>
 
-      <section className="panel reveal">
+      <section className="metric-grid reveal" aria-label="Ключевые метрики">
+        {metrics.map((item) => (
+          <article key={item.title} className="metric-card">
+            <p className="metric-value">{item.value}</p>
+            <p className="metric-title">{item.title}</p>
+            <span>{item.note}</span>
+          </article>
+        ))}
+      </section>
+
+      <section className="section reveal" id="audience">
         <div className="section-head">
           <h2>Для кого</h2>
+          <p>Разные роли, единые процессы и прозрачная операционная модель внутри СНТ.</p>
         </div>
-        <div className="grid-two">
+        <div className="card-grid two">
           {audience.map((item) => (
             <article key={item.title} className="card">
               <h3>{item.title}</h3>
@@ -95,22 +192,27 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="panel reveal">
+      <section className="section reveal" id="features">
         <div className="section-head">
-          <h2>Функции платформы</h2>
+          <h2>Ключевые функции</h2>
+          <p>Все, что нужно для ежедневного управления СНТ, собрано в одном продукте.</p>
         </div>
-        <ul className="feature-list">
+        <div className="card-grid three">
           {features.map((feature) => (
-            <li key={feature}>{feature}</li>
+            <article key={feature.title} className="card feature-card">
+              <h3>{feature.title}</h3>
+              <p>{feature.description}</p>
+            </article>
           ))}
-        </ul>
+        </div>
       </section>
 
-      <section className="panel reveal">
+      <section className="section reveal" id="benefits">
         <div className="section-head">
-          <h2>Почему это работает</h2>
+          <h2>Почему это выгодно</h2>
+          <p>Платформа снижает ручную нагрузку и делает решения внутри СНТ прозрачными для всех сторон.</p>
         </div>
-        <div className="grid-three">
+        <div className="card-grid three">
           {benefits.map((item) => (
             <article key={item.title} className="card">
               <h3>{item.title}</h3>
@@ -120,7 +222,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="panel reveal">
+      <section className="section reveal" id="faq">
         <div className="section-head">
           <h2>FAQ</h2>
         </div>
@@ -134,9 +236,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="panel contact reveal">
-        <h2>Контакты</h2>
-        <p>Чтобы подключить СНТ или получить презентацию, напишите нам.</p>
+      <section className="section contact reveal" id="contacts">
+        <h2>Запросить демо</h2>
+        <p>Покажем продукт на ваших сценариях и дадим план запуска для конкретного СНТ.</p>
         <a href={`mailto:${demoEmail}`} className="contact-link">
           {demoEmail}
         </a>
@@ -144,7 +246,10 @@ export default function LandingPage() {
 
       <footer className="footer">
         <p>© {new Date().getFullYear()} SNTPortal</p>
-        <Link href={appLoginUrl}>Перейти в приложение</Link>
+        <div className="footer-links">
+          <a href="#top">Наверх</a>
+          <a href={appLoginUrl}>Войти в приложение</a>
+        </div>
       </footer>
     </main>
   );
