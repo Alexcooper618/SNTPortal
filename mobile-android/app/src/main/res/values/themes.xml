@@ -5,7 +5,7 @@
         <item name="android:windowBackground">@color/system_bar_background</item>
         <item name="android:statusBarColor">@color/system_bar_background</item>
         <item name="android:navigationBarColor">@color/system_nav_background</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>

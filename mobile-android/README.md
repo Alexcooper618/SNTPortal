@@ -1,28 +1,34 @@
-# SNT Portal Android (WebView)
+# SNT Portal Android (Native v1)
 
-Android wrapper for the existing web portal.
+Android app migrated to native stack:
+
+- `Kotlin + Jetpack Compose`
+- `Hilt DI`
+- `Retrofit/OkHttp` with token refresh
+- `EncryptedSharedPreferences` session storage
+- Native tabs: `Главная`, `Новости`, `Чат`, `Профиль`
+- Web fallback for non-native sections
 
 ## Build debug APK
 
 ```bash
 cd mobile-android
-./gradlew assembleDebug -PPORTAL_BASE_URL=https://<production-web-domain>
+./gradlew assembleDebug -PPORTAL_BASE_URL=https://app.snt-portal.ru -PNATIVE_APP_ENABLED=true
 ```
 
 Output APK:
 
 `app/build/outputs/apk/debug/app-debug.apk`
 
-## Install on a test device
+## Feature flags
+
+- `PORTAL_BASE_URL` — base portal URL (`https://app.snt-portal.ru` by default)
+- `NATIVE_APP_ENABLED` — turn native shell on/off (`true` by default)
+
+If `NATIVE_APP_ENABLED=false`, app opens full web portal fallback.
+
+## Install on device
 
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
-
-## Notes
-
-- `PORTAL_BASE_URL` must be HTTPS.
-- Default `PORTAL_BASE_URL` is `https://app.snt-portal.ru` and can be overridden via `-PPORTAL_BASE_URL=...`.
-- External links outside the portal domain are opened with Android `ACTION_VIEW`.
-- Geolocation prompts runtime location permission (`ACCESS_FINE_LOCATION`).
-- If `gradle/wrapper/gradle-wrapper.jar` is missing in your local checkout, run `gradle wrapper` once after installing JDK 17+ and Gradle.
