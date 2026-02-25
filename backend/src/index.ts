@@ -2,6 +2,7 @@ import { app } from "./app";
 import { env } from "./config/env";
 import { ensureCoreChatRooms, ensureDefaultTenant } from "./lib/tenant";
 import { ensurePlatformAdmin } from "./lib/platform-admin";
+import { startSmartHomePoller } from "./services/smart-home/service";
 
 const bootstrap = async () => {
   await ensureDefaultTenant();
@@ -10,6 +11,7 @@ const bootstrap = async () => {
 
   app.listen(env.port, () => {
     console.log(`SNT backend started on port ${env.port}`);
+    startSmartHomePoller();
   });
 };
 

@@ -133,6 +133,30 @@ enum NotificationType {
   FORUM
   INCIDENT
   GOVERNANCE
+  DEVICE
+}
+
+enum SmartProvider {
+  TUYA
+}
+
+enum SmartProviderAccountStatus {
+  ACTIVE
+  NEED_RECONNECT
+  DISABLED
+}
+
+enum SmartStateSource {
+  WEBHOOK
+  POLL
+}
+
+enum SmartCommandStatus {
+  QUEUED
+  SENT
+  SUCCESS
+  FAILED
+  TIMEOUT
 }
 
 model Tenant {
@@ -156,6 +180,10 @@ model Tenant {
   invoices         Invoice[]
   payments         Payment[]
   webhookEvents    PaymentWebhookEvent[]
+  smartProviderAccounts SmartProviderAccount[]
+  smartDevices     SmartDevice[]
+  smartDeviceCommands SmartDeviceCommand[]
+  smartWebhookEvents SmartWebhookEvent[]
   ledgerEntries    LedgerEntry[]
   newsPosts        NewsPost[]
   newsPostLikes    NewsPostLike[]
@@ -199,6 +227,10 @@ model User {
   plotMemberships   PlotOwnership[]
   sessions          UserSession[]
   otpCodes          OtpCode[]
+  smartProviderAccounts SmartProviderAccount[]
+  smartDevices      SmartDevice[]
+  smartDeviceCommands SmartDeviceCommand[]
+  smartWebhookEvents SmartWebhookEvent[]
   authoredCharges   Charge[]            @relation("ChargeCreator")
   invoices          Invoice[]
   initiatedPayments Payment[]           @relation("PaymentInitiator")
@@ -403,6 +435,107 @@ model PaymentWebhookEvent {
 
   @@unique([provider, eventId])
   @@index([tenantId, receivedAt])
+}
+
+model SmartProviderAccount {
+  id             String                     @id @default(cuid())
+  tenantId       Int
+  tenant         Tenant                     @relation(fields: [tenantId], references: [id])
+  userId         Int
+  user           User                       @relation(fields: [userId], references: [id])
+  provider       SmartProvider
+  externalUserId String
+  accessTokenEnc String
+  refreshTokenEnc String
+  accessExpiresAt DateTime
+  status         SmartProviderAccountStatus @default(ACTIVE)
+  lastSyncAt     DateTime?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  devices        SmartDevice[]
+
+  @@unique([provider, tenantId, userId])
+  @@index([tenantId, userId, status])
+  @@index([provider, externalUserId])
+}
+
+model SmartDevice {
+  id                     String          @id @default(cuid())
+  tenantId               Int
+  tenant                 Tenant          @relation(fields: [tenantId], references: [id])
+  userId                 Int
+  user                   User            @relation(fields: [userId], references: [id])
+  providerAccountId      String
+  providerAccount        SmartProviderAccount @relation(fields: [providerAccountId], references: [id], onDelete: Cascade)
+  provider               SmartProvider
+  externalDeviceId       String
+  name                   String
+  category               String?
+  isOnline               Boolean         @default(false)
+  roomName               String?
+  capabilitySnapshotJson Json?
+  lastSeenAt             DateTime?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  states                 SmartDeviceState[]
+  commands               SmartDeviceCommand[]
+
+  @@unique([providerAccountId, externalDeviceId])
+  @@index([tenantId, userId, updatedAt])
+  @@index([provider, externalDeviceId])
+}
+
+model SmartDeviceState {
+  id         String           @id @default(cuid())
+  deviceId   String
+  device     SmartDevice      @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  source     SmartStateSource
+  stateJson  Json
+  reportedAt DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+
+  @@index([deviceId, reportedAt])
+}
+
+model SmartDeviceCommand {
+  id               String            @id @default(cuid())
+  tenantId         Int
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  userId           Int
+  user             User              @relation(fields: [userId], references: [id])
+  deviceId         String
+  device           SmartDevice       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  commandType      String
+  payloadJson      Json?
+  providerRequestId String?
+  status           SmartCommandStatus @default(QUEUED)
+  errorCode        String?
+  errorMessage     String?
+  executedAt       DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([tenantId, userId, createdAt])
+  @@index([deviceId, createdAt])
+}
+
+model SmartWebhookEvent {
+  id               String        @id @default(cuid())
+  provider         SmartProvider
+  eventId          String?
+  dedupeKey        String
+  tenantId         Int?
+  tenant           Tenant?       @relation(fields: [tenantId], references: [id])
+  userId           Int?
+  user             User?         @relation(fields: [userId], references: [id])
+  deviceExternalId String?
+  payloadJson      Json
+  signatureValid   Boolean       @default(false)
+  receivedAt       DateTime      @default(now())
+  processedAt      DateTime?
+
+  @@unique([provider, dedupeKey])
+  @@index([tenantId, userId, receivedAt])
 }
 
 model LedgerEntry {

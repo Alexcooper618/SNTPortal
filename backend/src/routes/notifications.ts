@@ -78,7 +78,7 @@ router.post(
     const body = assertString(req.body.body, "body");
 
     const typeRaw = typeof req.body.type === "string" ? req.body.type.toUpperCase() : "SYSTEM";
-    if (!["SYSTEM", "BILLING", "NEWS", "FORUM", "INCIDENT", "GOVERNANCE"].includes(typeRaw)) {
+    if (!["SYSTEM", "BILLING", "NEWS", "FORUM", "INCIDENT", "GOVERNANCE", "DEVICE"].includes(typeRaw)) {
       throw badRequest("Invalid notification type");
     }
 

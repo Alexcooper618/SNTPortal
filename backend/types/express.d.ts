@@ -31,6 +31,7 @@ declare module "express" {
     json: (body: any) => Response;
     send: (body?: any) => Response;
     status: (code: number) => Response;
+    redirect: (statusOrUrl: number | string, url?: string) => Response;
   }
 
   export type NextFunction = (err?: unknown) => void;

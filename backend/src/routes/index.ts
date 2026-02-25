@@ -16,6 +16,7 @@ import notificationsRoutes from "./notifications";
 import auditRoutes from "./audit";
 import platformRoutes from "./platform";
 import weatherRoutes from "./weather";
+import smartHomeRoutes from "./smart-home";
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use("/notifications", notificationsRoutes);
 router.use("/audit", auditRoutes);
 router.use("/platform", platformRoutes);
 router.use("/weather", weatherRoutes);
+router.use("/smart-home", smartHomeRoutes);
 
 export default router;

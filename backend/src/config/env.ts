@@ -20,6 +20,76 @@ const toBoolean = (value: string | undefined, fallback: boolean): boolean => {
   return value.trim().toLowerCase() === "true";
 };
 
+type TuyaRegion = "EU" | "US" | "CN" | "IN";
+
+const normalizeTuyaRegion = (value: string | undefined): TuyaRegion => {
+  const normalized = (value ?? "EU").trim().toUpperCase();
+  if (normalized === "EU" || normalized === "US" || normalized === "CN" || normalized === "IN") {
+    return normalized;
+  }
+  return "EU";
+};
+
+const stripTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
+
+const tuyaRegion = normalizeTuyaRegion(process.env.TUYA_REGION);
+const smartHomeEnabled = toBoolean(process.env.SMART_HOME_ENABLED, false);
+
+const defaultTuyaApiBaseUrlByRegion: Record<TuyaRegion, string> = {
+  EU: "https://openapi.tuyaeu.com",
+  US: "https://openapi.tuyaus.com",
+  CN: "https://openapi.tuyacn.com",
+  IN: "https://openapi.tuyain.com",
+};
+
+const defaultTuyaAuthorizeUrlByRegion: Record<TuyaRegion, string> = {
+  EU: "https://auth.tuyaeu.com/oauth/authorize",
+  US: "https://auth.tuyaus.com/oauth/authorize",
+  CN: "https://auth.tuyacn.com/oauth/authorize",
+  IN: "https://auth.tuyain.com/oauth/authorize",
+};
+
+const tuyaApiBaseUrl = stripTrailingSlash(
+  process.env.TUYA_API_BASE_URL ?? defaultTuyaApiBaseUrlByRegion[tuyaRegion]
+);
+const tuyaOauthAuthorizeUrl = stripTrailingSlash(
+  process.env.TUYA_OAUTH_AUTHORIZE_URL ?? defaultTuyaAuthorizeUrlByRegion[tuyaRegion]
+);
+const tuyaOauthTokenUrl = stripTrailingSlash(
+  process.env.TUYA_OAUTH_TOKEN_URL ?? `${tuyaApiBaseUrl}/v1.0/oauth/token`
+);
+const smartPollIntervalSec = Math.max(10, toNumber(process.env.SMART_POLL_INTERVAL_SEC ?? "30", 30));
+const smartStateTtlSeconds = Math.max(120, toNumber(process.env.SMART_STATE_TTL_SECONDS ?? "300", 300));
+
+const tuyaClientId = process.env.TUYA_CLIENT_ID ?? "";
+const tuyaClientSecret = process.env.TUYA_CLIENT_SECRET ?? "";
+const tuyaWebhookSecret = process.env.TUYA_WEBHOOK_SECRET ?? "";
+const tuyaOauthRedirectUrl = process.env.TUYA_OAUTH_REDIRECT_URL ?? "";
+const smartHomeTokenEncKey = process.env.SMART_HOME_TOKEN_ENC_KEY ?? "";
+const smartHomeStateSecret = process.env.SMART_HOME_STATE_SECRET ?? process.env.JWT_ACCESS_SECRET ?? "";
+const smartHomeUiReturnUrl = process.env.SMART_HOME_UI_RETURN_URL ?? "";
+
+if (smartHomeEnabled) {
+  if (!tuyaClientId.trim()) {
+    throw new Error("Missing required env var when SMART_HOME_ENABLED=true: TUYA_CLIENT_ID");
+  }
+  if (!tuyaClientSecret.trim()) {
+    throw new Error("Missing required env var when SMART_HOME_ENABLED=true: TUYA_CLIENT_SECRET");
+  }
+  if (!tuyaWebhookSecret.trim()) {
+    throw new Error("Missing required env var when SMART_HOME_ENABLED=true: TUYA_WEBHOOK_SECRET");
+  }
+  if (!tuyaOauthRedirectUrl.trim()) {
+    throw new Error("Missing required env var when SMART_HOME_ENABLED=true: TUYA_OAUTH_REDIRECT_URL");
+  }
+  if (!smartHomeTokenEncKey.trim()) {
+    throw new Error("Missing required env var when SMART_HOME_ENABLED=true: SMART_HOME_TOKEN_ENC_KEY");
+  }
+  if (!smartHomeStateSecret.trim()) {
+    throw new Error("Missing required env var when SMART_HOME_ENABLED=true: SMART_HOME_STATE_SECRET");
+  }
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: toNumber(process.env.PORT ?? "3000", 3000),
@@ -40,6 +110,20 @@ export const env = {
   otpMaxAttempts: toNumber(process.env.OTP_MAX_ATTEMPTS ?? "5", 5),
   tbankTerminalKey: process.env.TBANK_TERMINAL_KEY ?? "test-terminal",
   tbankWebhookSecret: process.env.TBANK_WEBHOOK_SECRET ?? "test-webhook-secret",
+  smartHomeEnabled,
+  smartPollIntervalSec,
+  smartStateTtlSeconds,
+  tuyaRegion,
+  tuyaApiBaseUrl,
+  tuyaOauthAuthorizeUrl,
+  tuyaOauthTokenUrl,
+  tuyaClientId,
+  tuyaClientSecret,
+  tuyaWebhookSecret,
+  tuyaOauthRedirectUrl,
+  smartHomeTokenEncKey,
+  smartHomeStateSecret,
+  smartHomeUiReturnUrl,
 };
 
 export const isProd = env.nodeEnv === "production";

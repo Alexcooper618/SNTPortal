@@ -10,6 +10,7 @@ import {
   Map as MapIcon,
   Megaphone,
   MessageSquareText,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -28,6 +29,7 @@ const residentNav: NavItem[] = [
   { href: "/news", label: "Новости" },
   { href: "/forum", label: "Чат" },
   { href: "/documents", label: "Документы" },
+  { href: "/devices", label: "Умный дом" },
   { href: "/profile", label: "Профиль" },
   { href: "/incidents", label: "Обращения" },
 ];
@@ -46,6 +48,7 @@ const mobileNavIconMap: Record<string, LucideIcon> = {
   "/payments": CreditCard,
   "/news": Megaphone,
   "/forum": MessageSquareText,
+  "/devices": Plug,
 };
 
 interface PortalShellProps {
