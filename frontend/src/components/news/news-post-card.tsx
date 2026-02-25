@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, MessageCircle, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, Play, Trash2 } from "lucide-react";
 import { NewsComments } from "./news-comments";
+import { NewsMediaLightbox } from "./news-media-lightbox";
 import { NewsFeedPost } from "./types";
 
 interface NewsPostCardProps {
@@ -29,6 +30,7 @@ export function NewsPostCard({
   onCommentsCountChange,
 }: NewsPostCardProps) {
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const isAuthor = post.author.id === currentUserId;
 
   return (
@@ -55,13 +57,29 @@ export function NewsPostCard({
 
       {post.attachments.length > 0 ? (
         <div className={post.attachments.length === 1 ? "news-media-grid single" : "news-media-grid"}>
-          {post.attachments.map((attachment) => (
+          {post.attachments.map((attachment, index) => (
             <div key={attachment.id} className="news-media-tile">
-              {attachment.mediaType === "IMAGE" ? (
-                <img src={attachment.fileUrl} alt={attachment.fileName} />
-              ) : (
-                <video src={attachment.fileUrl} controls preload="metadata" playsInline />
-              )}
+              <button
+                type="button"
+                className={
+                  attachment.mediaType === "IMAGE"
+                    ? "news-media-trigger is-image"
+                    : "news-media-trigger is-video"
+                }
+                onClick={() => setLightboxIndex(index)}
+                aria-label={`Открыть медиа ${index + 1}`}
+              >
+                {attachment.mediaType === "IMAGE" ? (
+                  <img src={attachment.fileUrl} alt={attachment.fileName} />
+                ) : (
+                  <>
+                    <video src={attachment.fileUrl} preload="metadata" playsInline muted />
+                    <span className="news-media-play-badge" aria-hidden="true">
+                      <Play size={18} />
+                    </span>
+                  </>
+                )}
+              </button>
             </div>
           ))}
         </div>
@@ -94,6 +112,14 @@ export function NewsPostCard({
           tenantSlug={tenantSlug}
           currentUserId={currentUserId}
           onCountChange={(count) => onCommentsCountChange(post.id, count)}
+        />
+      ) : null}
+
+      {lightboxIndex !== null ? (
+        <NewsMediaLightbox
+          items={post.attachments}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
         />
       ) : null}
     </article>
