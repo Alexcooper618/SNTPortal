@@ -3,13 +3,13 @@ import { Space_Grotesk, Spectral } from "next/font/google";
 import "./globals.css";
 
 const bodyFont = Space_Grotesk({
-  subsets: ["latin", "cyrillic"],
+  subsets: ["latin", "latin-ext"],
   variable: "--font-body",
   display: "swap",
 });
 
 const displayFont = Spectral({
-  subsets: ["latin", "cyrillic"],
+  subsets: ["latin", "latin-ext"],
   variable: "--font-display",
   display: "swap",
   weight: ["400", "500", "600", "700"],
