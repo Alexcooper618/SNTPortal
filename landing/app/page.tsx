@@ -1,5 +1,13 @@
+import Image from "next/image";
+
 const appLoginUrl = process.env.APP_LOGIN_URL ?? "https://app.snt-portal.ru/login";
 const demoEmail = process.env.DEMO_EMAIL ?? "hello@snt-portal.ru";
+const visuals = {
+  hero: "/images/landing/hero-abstract-v1.webp",
+  audience: "/images/landing/audience-abstract-v1.webp",
+  features: "/images/landing/features-abstract-v1.webp",
+  benefits: "/images/landing/benefits-abstract-v1.webp",
+};
 
 const navItems = [
   { href: "#audience", label: "Для кого" },
@@ -123,6 +131,16 @@ export default function LandingPage() {
       </header>
 
       <section className="hero reveal" id="top">
+        <div className="hero-art-wrap" aria-hidden="true">
+          <Image
+            src={visuals.hero}
+            alt=""
+            fill
+            priority
+            sizes="(max-width: 860px) 100vw, (max-width: 1080px) 90vw, 720px"
+            className="hero-art"
+          />
+        </div>
         <div className="hero-copy">
           <p className="eyebrow">Цифровая платформа для СНТ</p>
           <h1>
@@ -177,10 +195,19 @@ export default function LandingPage() {
         ))}
       </section>
 
-      <section className="section reveal" id="audience">
+      <section className="section section-audience reveal" id="audience">
         <div className="section-head">
           <h2>Для кого</h2>
           <p>Разные роли, единые процессы и прозрачная операционная модель внутри СНТ.</p>
+        </div>
+        <div className="section-visual section-visual-audience" aria-hidden="true">
+          <Image
+            src={visuals.audience}
+            alt=""
+            fill
+            sizes="(max-width: 860px) 100vw, 1120px"
+            className="section-visual-image"
+          />
         </div>
         <div className="card-grid two">
           {audience.map((item) => (
@@ -192,10 +219,19 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="section reveal" id="features">
+      <section className="section section-features reveal" id="features">
         <div className="section-head">
           <h2>Ключевые функции</h2>
           <p>Все, что нужно для ежедневного управления СНТ, собрано в одном продукте.</p>
+        </div>
+        <div className="section-visual section-visual-features" aria-hidden="true">
+          <Image
+            src={visuals.features}
+            alt=""
+            fill
+            sizes="(max-width: 860px) 100vw, 1120px"
+            className="section-visual-image"
+          />
         </div>
         <div className="card-grid three">
           {features.map((feature) => (
@@ -207,10 +243,19 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="section reveal" id="benefits">
+      <section className="section section-benefits reveal" id="benefits">
         <div className="section-head">
           <h2>Почему это выгодно</h2>
           <p>Платформа снижает ручную нагрузку и делает решения внутри СНТ прозрачными для всех сторон.</p>
+        </div>
+        <div className="section-visual section-visual-benefits" aria-hidden="true">
+          <Image
+            src={visuals.benefits}
+            alt=""
+            fill
+            sizes="(max-width: 860px) 100vw, 1120px"
+            className="section-visual-image"
+          />
         </div>
         <div className="card-grid three">
           {benefits.map((item) => (

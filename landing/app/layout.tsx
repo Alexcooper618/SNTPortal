@@ -1,21 +1,21 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk, Spectral } from "next/font/google";
+import { Golos_Text, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
-const bodyFont = Space_Grotesk({
-  subsets: ["latin", "latin-ext"],
+const bodyFont = Golos_Text({
+  subsets: ["cyrillic", "latin", "latin-ext"],
   variable: "--font-body",
   display: "swap",
 });
 
-const displayFont = Spectral({
-  subsets: ["latin", "latin-ext"],
+const displayFont = Source_Serif_4({
+  subsets: ["cyrillic", "latin", "latin-ext"],
   variable: "--font-display",
   display: "swap",
-  weight: ["400", "500", "600", "700"],
 });
 
 const baseUrlRaw = process.env.LANDING_BASE_URL ?? "https://snt-portal.ru";
+const ogImagePath = "/images/landing/og-abstract-v1.png";
 const metadataBase = (() => {
   try {
     return new URL(baseUrlRaw);
@@ -40,12 +40,21 @@ export const metadata: Metadata = {
     siteName: "SNTPortal",
     type: "website",
     locale: "ru_RU",
+    images: [
+      {
+        url: ogImagePath,
+        width: 1536,
+        height: 1024,
+        alt: "SNTPortal",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "SNTPortal - современная платформа для СНТ",
     description:
       "Цифровизация СНТ: единый контур управления коммуникациями, документами и сервисами.",
+    images: [ogImagePath],
   },
   icons: {
     icon: "/favicon.ico",
