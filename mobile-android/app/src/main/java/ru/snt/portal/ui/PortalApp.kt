@@ -53,7 +53,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Dialog
+import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -98,7 +98,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okio.BufferedSink
-import okio.source
+import java.io.IOException
 import ru.snt.portal.core.model.NewsAttachment
 import ru.snt.portal.core.model.NewsPost
 import ru.snt.portal.core.model.NewsStoryGroup
@@ -224,10 +224,10 @@ private fun LoginScreen(viewModel: LoginViewModel) {
             visualTransformation = PasswordVisualTransformation(),
         )
 
-        if (state.error != null) {
+        state.error?.let { errorText ->
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = state.error,
+                text = errorText,
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -387,8 +387,8 @@ private fun DashboardScreen(
                         )
                     }
 
-                    if (state.error != null) {
-                        Text(state.error, color = MaterialTheme.colorScheme.error)
+                    state.error?.let { errorText ->
+                        Text(errorText, color = MaterialTheme.colorScheme.error)
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -476,9 +476,9 @@ private fun ChatScreen(viewModel: ChatViewModel, currentUserId: Int) {
             }
         }
 
-        if (state.error != null) {
+        state.error?.let { errorText ->
             Text(
-                text = state.error,
+                text = errorText,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             )
@@ -738,9 +738,9 @@ private fun NewsScreen(
             }
         }
 
-        if (state.error != null) {
+        state.error?.let { errorText ->
             item {
-                Text(state.error, color = MaterialTheme.colorScheme.error)
+                Text(errorText, color = MaterialTheme.colorScheme.error)
             }
         }
 
@@ -1243,17 +1243,23 @@ private suspend fun buildMultipartPart(
 
 private fun Context.createUriRequestBody(uri: Uri, mimeType: String): RequestBody? {
     val resolver = contentResolver
-    val contentLength = querySize(uri)
+    val resolvedContentType = mimeType.toMediaTypeOrNull()
+    val resolvedContentLength = querySize(uri)
 
     return object : RequestBody() {
-        override fun contentType() = mimeType.toMediaTypeOrNull()
+        override fun contentType() = resolvedContentType
 
-        override fun contentLength(): Long = contentLength
+        override fun contentLength(): Long = resolvedContentLength
 
         override fun writeTo(sink: BufferedSink) {
             resolver.openInputStream(uri)?.use { input ->
-                sink.writeAll(input.source())
-            } ?: error("Не удалось открыть файл для загрузки")
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read == -1) break
+                    sink.write(buffer, 0, read)
+                }
+            } ?: throw IOException("Не удалось открыть файл для загрузки")
         }
     }
 }

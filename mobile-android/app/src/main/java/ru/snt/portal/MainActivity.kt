@@ -16,10 +16,6 @@ import javax.inject.Named
 class MainActivity : ComponentActivity() {
 
     @Inject
-    @Named("nativeAppEnabled")
-    var nativeAppEnabled: Boolean = true
-
-    @Inject
     @Named("portalBaseUrl")
     lateinit var portalBaseUrl: String
 
@@ -34,7 +30,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             SntPortalTheme {
                 NativePortalApp(
-                    nativeEnabled = nativeAppEnabled,
+                    nativeEnabled = BuildConfig.NATIVE_APP_ENABLED,
                     portalBaseUrl = portalBaseUrl,
                     apiBaseUrl = apiBaseUrl,
                 )
