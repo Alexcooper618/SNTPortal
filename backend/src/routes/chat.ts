@@ -17,6 +17,7 @@ interface ChatMessageAuthor {
   id: number;
   name: string;
   role: UserRole;
+  avatarUrl?: string | null;
 }
 
 interface ChatMessageDto {
@@ -75,6 +76,50 @@ const extractMentionTokens = (value: string): string[] => {
   }
 
   return [...tokens];
+};
+
+const DIRECT_ROOM_NAME_PATTERN = /^dm:\d+:\d+$/;
+
+const resolveRoomPresentation = (
+  room: {
+    id: string;
+    name: string;
+    isPrivate: boolean;
+    members: Array<{
+      id: number;
+      user: {
+        id: number;
+        name: string;
+        role: UserRole;
+        avatarUrl: string | null;
+      };
+    }>;
+  },
+  currentUserId: number
+) => {
+  const peerMember = room.isPrivate
+    ? room.members.find((member) => member.user.id !== currentUserId) ?? null
+    : null;
+
+  const kind = room.isPrivate ? "DIRECT" : "TOPIC";
+  const title = room.isPrivate
+    ? peerMember?.user.name?.trim() ||
+      (DIRECT_ROOM_NAME_PATTERN.test(room.name) ? "Личный чат" : room.name) ||
+      "Личный чат"
+    : room.name;
+
+  return {
+    kind,
+    title,
+    peer: peerMember
+      ? {
+          id: peerMember.user.id,
+          name: peerMember.user.name,
+          role: peerMember.user.role,
+          avatarUrl: peerMember.user.avatarUrl,
+        }
+      : null,
+  } as const;
 };
 
 const toMessageDto = (message: {
@@ -441,6 +486,7 @@ router.get(
         name: true,
         phone: true,
         role: true,
+        avatarUrl: true,
         ownedPlots: {
           select: {
             id: true,
@@ -483,6 +529,7 @@ router.get(
                 id: true,
                 name: true,
                 role: true,
+                avatarUrl: true,
               },
             },
           },
@@ -498,6 +545,7 @@ router.get(
                 id: true,
                 name: true,
                 role: true,
+                avatarUrl: true,
               },
             },
           },
@@ -512,17 +560,33 @@ router.get(
     const { byRoom, summary } = await getUnreadByRoom(req.user!.tenantId, req.user!.userId, roomIds);
 
     res.json({
-      items: rooms.map((room) => ({
-        ...room,
-        members: room.members.map((member) => ({
+      items: rooms.map((room) => {
+        const mappedMembers = room.members.map((member) => ({
           id: member.id,
           user: member.user,
-        })),
-        lastMessage: room.messages[0] ? toMessageDto(room.messages[0]) : null,
-        unreadCount: byRoom.get(room.id)?.unreadCount ?? 0,
-        lastReadAt: byRoom.get(room.id)?.lastReadAt ?? null,
-        messages: undefined,
-      })),
+        }));
+        const presentation = resolveRoomPresentation(
+          {
+            id: room.id,
+            name: room.name,
+            isPrivate: room.isPrivate,
+            members: mappedMembers,
+          },
+          req.user!.userId
+        );
+
+        return {
+          ...room,
+          kind: presentation.kind,
+          title: presentation.title,
+          peer: presentation.peer,
+          members: mappedMembers,
+          lastMessage: room.messages[0] ? toMessageDto(room.messages[0]) : null,
+          unreadCount: byRoom.get(room.id)?.unreadCount ?? 0,
+          lastReadAt: byRoom.get(room.id)?.lastReadAt ?? null,
+          messages: undefined,
+        };
+      }),
       summary,
     });
   })
@@ -583,6 +647,7 @@ router.post(
         id: true,
         name: true,
         role: true,
+        avatarUrl: true,
       },
     });
 
@@ -647,6 +712,7 @@ router.post(
                 id: true,
                 name: true,
                 role: true,
+                avatarUrl: true,
               },
             },
           },
@@ -654,7 +720,34 @@ router.post(
       },
     });
 
-    res.status(201).json({ room: hydrated });
+    if (!hydrated) {
+      throw notFound("Room not found");
+    }
+
+    const mappedMembers = hydrated.members.map((member) => ({
+      id: member.id,
+      user: member.user,
+    }));
+
+    const presentation = resolveRoomPresentation(
+      {
+        id: hydrated.id,
+        name: hydrated.name,
+        isPrivate: hydrated.isPrivate,
+        members: mappedMembers,
+      },
+      req.user!.userId
+    );
+
+    res.status(201).json({
+      room: {
+        ...hydrated,
+        kind: presentation.kind,
+        title: presentation.title,
+        peer: presentation.peer,
+        members: mappedMembers,
+      },
+    });
   })
 );
 
@@ -677,6 +770,7 @@ router.get(
             id: true,
             name: true,
             role: true,
+            avatarUrl: true,
           },
         },
         replyTo: {
@@ -747,6 +841,7 @@ router.post(
               id: true,
               name: true,
               role: true,
+              avatarUrl: true,
             },
           },
           replyTo: {
@@ -844,6 +939,7 @@ router.patch(
               id: true,
               name: true,
               role: true,
+              avatarUrl: true,
             },
           },
           replyTo: {

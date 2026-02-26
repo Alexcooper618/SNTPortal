@@ -15,7 +15,7 @@ import ru.snt.portal.core.storage.entity.CachedNewsPostEntity
         CachedChatMessageEntity::class,
         CachedNewsPostEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class PortalDatabase : RoomDatabase() {

@@ -3,12 +3,14 @@ import { Router } from "express";
 import { prisma } from "../db";
 import { logAudit } from "../lib/audit";
 import { badRequest, customError, notFound } from "../lib/errors";
+import { persistAvatarMedia, removeUploadedFileByUrl } from "../lib/media-storage";
 import { getPagination } from "../lib/pagination";
 import { hashPassword } from "../lib/password";
 import { sanitizeUser } from "../lib/user-safe";
 import { assertArray, assertString, normalizePhone } from "../lib/validators";
 import { asyncHandler } from "../middlewares/async-handler";
 import { requireAuth, requireRole } from "../middlewares/auth";
+import { getUploadedFiles, parseUserAvatarMedia } from "../middlewares/upload";
 import { revokeAllUserSessions } from "../services/auth-service";
 
 const router = Router();
@@ -301,6 +303,111 @@ router.get(
       user: sanitizeUser(user),
       unreadNotifications,
     });
+  })
+);
+
+router.post(
+  "/me/avatar",
+  parseUserAvatarMedia,
+  asyncHandler(async (req, res) => {
+    const files = getUploadedFiles(req);
+    if (files.length !== 1) {
+      throw badRequest("Avatar file is required");
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      where: {
+        id: req.user!.userId,
+      },
+      select: {
+        id: true,
+        avatarUrl: true,
+      },
+    });
+
+    if (!currentUser) {
+      throw notFound("User not found");
+    }
+
+    const uploaded = files[0];
+    const persisted = await persistAvatarMedia({
+      originalName: uploaded.originalName,
+      mimeType: uploaded.mimeType,
+      buffer: uploaded.buffer,
+    });
+
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: currentUser.id,
+      },
+      data: {
+        avatarUrl: persisted.fileUrl,
+        avatarUpdatedAt: new Date(),
+      },
+    });
+
+    if (currentUser.avatarUrl && currentUser.avatarUrl !== persisted.fileUrl) {
+      await removeUploadedFileByUrl(currentUser.avatarUrl);
+    }
+
+    await logAudit({
+      tenantId: req.user!.tenantId,
+      actorId: req.user!.userId,
+      action: "USER_AVATAR_UPDATED",
+      entityType: "User",
+      entityId: String(currentUser.id),
+      requestId: req.requestId,
+      metadata: {
+        fileUrl: persisted.fileUrl,
+      },
+    });
+
+    res.json({ user: sanitizeUser(updatedUser) });
+  })
+);
+
+router.delete(
+  "/me/avatar",
+  asyncHandler(async (req, res) => {
+    const currentUser = await prisma.user.findUnique({
+      where: {
+        id: req.user!.userId,
+      },
+      select: {
+        id: true,
+        avatarUrl: true,
+      },
+    });
+
+    if (!currentUser) {
+      throw notFound("User not found");
+    }
+
+    const oldAvatarUrl = currentUser.avatarUrl;
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: currentUser.id,
+      },
+      data: {
+        avatarUrl: null,
+        avatarUpdatedAt: new Date(),
+      },
+    });
+
+    if (oldAvatarUrl) {
+      await removeUploadedFileByUrl(oldAvatarUrl);
+    }
+
+    await logAudit({
+      tenantId: req.user!.tenantId,
+      actorId: req.user!.userId,
+      action: "USER_AVATAR_REMOVED",
+      entityType: "User",
+      entityId: String(currentUser.id),
+      requestId: req.requestId,
+    });
+
+    res.json({ user: sanitizeUser(updatedUser) });
   })
 );
 

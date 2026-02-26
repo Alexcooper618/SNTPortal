@@ -3,8 +3,10 @@ import { IncomingMessage } from "http";
 import { NextFunction, Request, Response } from "express";
 import { badRequest } from "../lib/errors";
 import {
+  AVATAR_MEDIA_MAX_FILES,
   NEWS_POST_MEDIA_MAX_FILES,
   NEWS_STORY_MEDIA_MAX_FILES,
+  isAllowedAvatarMimeType,
   ensureMediaStorageReady,
   isAllowedNewsMimeType,
 } from "../lib/media-storage";
@@ -56,7 +58,7 @@ const parseContentDisposition = (headerValue: string): { name: string; fileName?
 const parseMultipartBody = (
   rawBody: Buffer,
   boundary: string,
-  maxFiles: number
+  options: { maxFiles: number; isAllowedMimeType: (mimeType: string) => boolean }
 ): { fields: Record<string, string>; files: UploadedMultipartFile[] } => {
   const marker = Buffer.from(`--${boundary}`);
   const fields: Record<string, string> = {};
@@ -117,11 +119,11 @@ const parseMultipartBody = (
       : "";
 
     if (disposition.fileName) {
-      if (!mimeType || !isAllowedNewsMimeType(mimeType)) {
+      if (!mimeType || !options.isAllowedMimeType(mimeType)) {
         throw badRequest("Unsupported media type");
       }
 
-      if (files.length >= maxFiles) {
+      if (files.length >= options.maxFiles) {
         throw badRequest("Too many media files");
       }
 
@@ -182,7 +184,11 @@ const readRequestBody = (req: Request): Promise<Buffer> => {
   });
 };
 
-const parseMultipartRequest = (maxFiles: number) => {
+const parseMultipartRequest = (options: {
+  maxFiles: number;
+  acceptedFieldName: string;
+  isAllowedMimeType: (mimeType: string) => boolean;
+}) => {
   return async (req: Request, _res: Response, next: NextFunction) => {
     const contentType = req.headers["content-type"];
     if (typeof contentType !== "string" || !contentType.includes("multipart/form-data")) {
@@ -193,10 +199,15 @@ const parseMultipartRequest = (maxFiles: number) => {
     try {
       const boundary = extractBoundary(contentType);
       const body = await readRequestBody(req);
-      const { fields, files } = parseMultipartBody(body, boundary, maxFiles);
+      const { fields, files } = parseMultipartBody(body, boundary, {
+        maxFiles: options.maxFiles,
+        isAllowedMimeType: options.isAllowedMimeType,
+      });
 
       req.body = fields;
-      (req as UploadRequest).uploadedFiles = files.filter((file) => file.fieldName === "media");
+      (req as UploadRequest).uploadedFiles = files.filter(
+        (file) => file.fieldName === options.acceptedFieldName
+      );
       next();
     } catch (error) {
       next(error);
@@ -207,5 +218,20 @@ const parseMultipartRequest = (maxFiles: number) => {
 export const getUploadedFiles = (req: Request): UploadedMultipartFile[] =>
   (req as UploadRequest).uploadedFiles ?? [];
 
-export const parseNewsPostMedia = parseMultipartRequest(NEWS_POST_MEDIA_MAX_FILES);
-export const parseNewsStoryMedia = parseMultipartRequest(NEWS_STORY_MEDIA_MAX_FILES);
+export const parseNewsPostMedia = parseMultipartRequest({
+  maxFiles: NEWS_POST_MEDIA_MAX_FILES,
+  acceptedFieldName: "media",
+  isAllowedMimeType: isAllowedNewsMimeType,
+});
+
+export const parseNewsStoryMedia = parseMultipartRequest({
+  maxFiles: NEWS_STORY_MEDIA_MAX_FILES,
+  acceptedFieldName: "media",
+  isAllowedMimeType: isAllowedNewsMimeType,
+});
+
+export const parseUserAvatarMedia = parseMultipartRequest({
+  maxFiles: AVATAR_MEDIA_MAX_FILES,
+  acceptedFieldName: "avatar",
+  isAllowedMimeType: isAllowedAvatarMimeType,
+});

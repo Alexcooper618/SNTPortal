@@ -39,6 +39,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Article
@@ -49,6 +50,7 @@ import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -59,7 +61,9 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -87,8 +91,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -109,8 +111,10 @@ import ru.snt.portal.core.model.NewsAttachment
 import ru.snt.portal.core.model.NewsPost
 import ru.snt.portal.core.model.NewsStoryGroup
 import ru.snt.portal.core.model.SessionState
+import ru.snt.portal.core.model.ChatRoomDto
 import ru.snt.portal.core.session.displayName
 import ru.snt.portal.core.session.displayRole
+import ru.snt.portal.ui.components.PhoneField
 
 private enum class NativeTab(val title: String) {
     Dashboard("Главная"),
@@ -262,13 +266,10 @@ private fun LoginScreen(viewModel: LoginViewModel) {
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-        OutlinedTextField(
+        PhoneField(
             value = state.phone,
             onValueChange = viewModel::onPhoneChange,
-            label = { Text("Телефон") },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -317,6 +318,7 @@ private fun PortalScaffold(
     dashboardViewModel: DashboardViewModel = hiltViewModel(),
     chatViewModel: ChatViewModel = hiltViewModel(),
     newsViewModel: NewsViewModel = hiltViewModel(),
+    profileViewModel: ProfileViewModel = hiltViewModel(),
 ) {
     var tab by rememberSaveable { mutableStateOf(NativeTab.Dashboard) }
     var webPath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -392,9 +394,15 @@ private fun PortalScaffold(
                 )
 
                 NativeTab.News -> NewsScreen(viewModel = newsViewModel, apiBaseUrl = apiBaseUrl)
-                NativeTab.Chat -> ChatScreen(viewModel = chatViewModel, currentUserId = session.user.id)
+                NativeTab.Chat -> ChatScreen(
+                    viewModel = chatViewModel,
+                    currentUserId = session.user.id,
+                    apiBaseUrl = apiBaseUrl,
+                )
                 NativeTab.Profile -> ProfileScreen(
                     session = session,
+                    apiBaseUrl = apiBaseUrl,
+                    viewModel = profileViewModel,
                     onLogout = onLogout,
                     onOpenWebSection = { path -> webPath = path },
                 )
@@ -470,40 +478,168 @@ private fun DashboardScreen(
     }
 }
 
+private enum class ChatRoomFilter(val label: String) {
+    All("Все"),
+    Direct("Личные"),
+    Topic("Топики"),
+}
+
 @Composable
-private fun ChatScreen(viewModel: ChatViewModel, currentUserId: Int) {
+private fun ChatScreen(
+    viewModel: ChatViewModel,
+    currentUserId: Int,
+    apiBaseUrl: String,
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var filter by rememberSaveable { mutableStateOf(ChatRoomFilter.All) }
+    var search by rememberSaveable { mutableStateOf("") }
+    var openedRoomId by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val filteredRooms = remember(state.rooms, filter, search, currentUserId) {
+        val query = search.trim().lowercase()
+        state.rooms.filter { room ->
+            val roomIsDirect = room.kind.equals("DIRECT", ignoreCase = true) || room.isPrivate
+            val matchesKind = when (filter) {
+                ChatRoomFilter.All -> true
+                ChatRoomFilter.Direct -> roomIsDirect
+                ChatRoomFilter.Topic -> !roomIsDirect
+            }
+            val roomTitle = resolveChatRoomTitle(room, currentUserId)
+            val preview = room.lastMessage?.body.orEmpty()
+            val matchesSearch = query.isBlank() ||
+                roomTitle.lowercase().contains(query) ||
+                preview.lowercase().contains(query)
+            matchesKind && matchesSearch
+        }
+    }
+
+    val openedRoom = remember(state.rooms, openedRoomId) {
+        val roomId = openedRoomId ?: return@remember null
+        state.rooms.firstOrNull { it.id == roomId }
+    }
+
+    if (openedRoomId == null || openedRoom == null) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                label = { Text("Поиск чатов") },
+                placeholder = { Text("Имя, сообщение, топик") },
+                singleLine = true,
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ChatRoomFilter.entries.forEach { roomFilter ->
+                    FilterChip(
+                        selected = filter == roomFilter,
+                        onClick = { filter = roomFilter },
+                        label = { Text(roomFilter.label) },
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (state.roomLoading && state.rooms.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                }
+            } else if (filteredRooms.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (state.rooms.isEmpty()) "Чатов пока нет." else "Ничего не найдено.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(filteredRooms, key = { it.id }) { room ->
+                        ChatRoomRow(
+                            room = room,
+                            currentUserId = currentUserId,
+                            apiBaseUrl = apiBaseUrl,
+                            onClick = {
+                                openedRoomId = room.id
+                                viewModel.selectRoom(room.id)
+                            },
+                        )
+                    }
+                }
+            }
+
+            state.error?.let { errorText ->
+                Text(
+                    text = errorText,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                )
+            }
+        }
+        return
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        LazyRow(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            items(state.rooms, key = { it.id }) { room ->
-                val selected = room.id == state.selectedRoomId
-                AssistChip(
-                    onClick = { viewModel.selectRoom(room.id) },
-                    label = {
-                        Text(
-                            if (room.unreadCount > 0) "${room.name} · ${room.unreadCount}" else room.name,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    colors = if (selected) {
-                        AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                        )
+            IconButton(onClick = { openedRoomId = null }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Назад к чатам",
+                )
+            }
+            ChatAvatar(
+                name = resolveChatRoomTitle(openedRoom, currentUserId),
+                avatarUrl = openedRoom.peer?.avatarUrl,
+                apiBaseUrl = apiBaseUrl,
+                size = 40.dp,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = resolveChatRoomTitle(openedRoom, currentUserId),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (openedRoom.kind.equals("DIRECT", ignoreCase = true) || openedRoom.isPrivate) {
+                        "Личный чат"
                     } else {
-                        AssistChipDefaults.assistChipColors()
+                        "Топик"
                     },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
 
-        if ((state.roomLoading && state.rooms.isEmpty()) || (state.messagesLoading && state.messages.isEmpty())) {
+        if (state.messagesLoading && state.messages.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -520,7 +656,6 @@ private fun ChatScreen(viewModel: ChatViewModel, currentUserId: Int) {
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            reverseLayout = false,
         ) {
             items(state.messages, key = { it.id }) { message ->
                 val mine = message.author.id == currentUserId
@@ -572,6 +707,139 @@ private fun ChatScreen(viewModel: ChatViewModel, currentUserId: Int) {
             }
         }
     }
+}
+
+@Composable
+private fun ChatRoomRow(
+    room: ChatRoomDto,
+    currentUserId: Int,
+    apiBaseUrl: String,
+    onClick: () -> Unit,
+) {
+    val title = resolveChatRoomTitle(room, currentUserId)
+    val lastMessage = room.lastMessage
+    val preview = if (lastMessage == null) {
+        "Нет сообщений"
+    } else if (lastMessage.author.id == currentUserId) {
+        "Вы: ${lastMessage.body}"
+    } else {
+        "${lastMessage.author.name}: ${lastMessage.body}"
+    }.replace('\n', ' ')
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ChatAvatar(
+                name = title,
+                avatarUrl = room.peer?.avatarUrl,
+                apiBaseUrl = apiBaseUrl,
+            )
+
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = preview,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = formatChatTime(lastMessage?.createdAt ?: room.updatedAt),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (room.unreadCount > 0) {
+                    Badge {
+                        Text(if (room.unreadCount > 99) "99+" else room.unreadCount.toString())
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatAvatar(
+    name: String,
+    avatarUrl: String?,
+    apiBaseUrl: String,
+    size: androidx.compose.ui.unit.Dp = 48.dp,
+) {
+    val resolvedAvatar = avatarUrl?.takeIf { it.isNotBlank() }?.let { resolveMediaUrl(apiBaseUrl, it) }
+    if (resolvedAvatar != null) {
+        AsyncImage(
+            model = resolvedAvatar,
+            contentDescription = name,
+            modifier = Modifier
+                .size(size)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop,
+        )
+        return
+    }
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = buildAvatarInitials(name),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+private fun buildAvatarInitials(name: String): String {
+    val parts = name.trim().split(" ").filter { it.isNotBlank() }
+    if (parts.isEmpty()) return "?"
+    if (parts.size == 1) return parts.first().take(1).uppercase()
+    return (parts.first().take(1) + parts.last().take(1)).uppercase()
+}
+
+private fun resolveChatRoomTitle(room: ChatRoomDto, currentUserId: Int): String {
+    if (room.title.isNotBlank()) return room.title
+    room.peer?.name?.takeIf { it.isNotBlank() }?.let { return it }
+    if (room.isPrivate || room.kind.equals("DIRECT", ignoreCase = true)) {
+        room.members.firstOrNull { member -> member.user.id != currentUserId }?.user?.name?.let { return it }
+        if (room.name.startsWith("dm:", ignoreCase = true)) return "Личный чат"
+    }
+    return room.name
+}
+
+private fun formatChatTime(raw: String?): String {
+    if (raw.isNullOrBlank()) return ""
+    val normalized = raw.replace('T', ' ')
+    if (normalized.length >= 16) {
+        return normalized.substring(11, 16)
+    }
+    return normalized.takeLast(5)
 }
 
 @Composable
@@ -1105,9 +1373,46 @@ private fun NewsMediaStrip(
 @Composable
 private fun ProfileScreen(
     session: SessionState,
+    apiBaseUrl: String,
+    viewModel: ProfileViewModel,
     onLogout: () -> Unit,
     onOpenWebSection: (String) -> Unit,
 ) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+
+        val picked = context.resolvePickedMedia(uri)
+        if (picked == null) {
+            viewModel.setError("Не удалось прочитать выбранный файл")
+            return@rememberLauncherForActivityResult
+        }
+
+        if (!picked.mimeType.startsWith("image/")) {
+            viewModel.setError("Для аватара выберите изображение")
+            return@rememberLauncherForActivityResult
+        }
+
+        coroutineScope.launch {
+            val part = buildMultipartPart(context, picked, "avatar")
+            if (part == null) {
+                viewModel.setError("Не удалось подготовить изображение")
+                return@launch
+            }
+            viewModel.uploadAvatar(part)
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -1115,10 +1420,59 @@ private fun ProfileScreen(
     ) {
         item {
             ElevatedCard {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(session.displayName(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(session.user.phone, style = MaterialTheme.typography.bodyMedium)
-                    Text(session.displayRole(), style = MaterialTheme.typography.labelLarge)
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ChatAvatar(
+                            name = session.displayName(),
+                            avatarUrl = session.user.avatarUrl,
+                            apiBaseUrl = apiBaseUrl,
+                            size = 72.dp,
+                        )
+
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(session.displayName(), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text(session.user.phone, style = MaterialTheme.typography.bodyMedium)
+                            Text(session.displayRole(), style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { avatarPicker.launch(arrayOf("image/*")) },
+                            enabled = !state.uploadingAvatar && !state.removingAvatar,
+                        ) {
+                            Text(if (state.uploadingAvatar) "Загрузка…" else "Изменить фото")
+                        }
+
+                        if (!session.user.avatarUrl.isNullOrBlank()) {
+                            TextButton(
+                                onClick = viewModel::removeAvatar,
+                                enabled = !state.uploadingAvatar && !state.removingAvatar,
+                            ) {
+                                Text(if (state.removingAvatar) "Удаление…" else "Удалить")
+                            }
+                        }
+                    }
+
+                    state.notice?.let { noticeText ->
+                        Text(
+                            text = noticeText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+
+                    state.error?.let { errorText ->
+                        Text(
+                            text = errorText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
         }

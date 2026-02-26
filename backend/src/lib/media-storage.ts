@@ -10,6 +10,8 @@ export const NEWS_POST_MEDIA_MAX_FILES = 10;
 export const NEWS_STORY_MEDIA_MAX_FILES = 1;
 export const NEWS_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const NEWS_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+export const AVATAR_MEDIA_MAX_FILES = 1;
+export const AVATAR_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const STORY_TTL_HOURS = 24;
 
 interface MediaValidationFile {
@@ -80,16 +82,20 @@ const ensureDirSync = (dirPath: string) => {
 export const getUploadsRootDir = () => env.mediaUploadDir;
 export const getNewsPostsMediaDir = () => path.join(getUploadsRootDir(), "news", "posts");
 export const getNewsStoriesMediaDir = () => path.join(getUploadsRootDir(), "news", "stories");
+export const getAvatarsMediaDir = () => path.join(getUploadsRootDir(), "avatars");
 
 export const ensureMediaStorageReady = () => {
   ensureDirSync(getUploadsRootDir());
   ensureDirSync(path.join(getUploadsRootDir(), "news"));
   ensureDirSync(getNewsPostsMediaDir());
   ensureDirSync(getNewsStoriesMediaDir());
+  ensureDirSync(getAvatarsMediaDir());
 };
 
 export const isAllowedNewsMimeType = (mimeType: string) =>
   IMAGE_MIME_TYPES.has(mimeType) || VIDEO_MIME_TYPES.has(mimeType);
+
+export const isAllowedAvatarMimeType = (mimeType: string) => IMAGE_MIME_TYPES.has(mimeType);
 
 export const resolveNewsMediaType = (mimeType: string): NewsMediaType => {
   if (IMAGE_MIME_TYPES.has(mimeType)) return NewsMediaType.IMAGE;
@@ -118,6 +124,16 @@ export const validateNewsMediaFile = (file: MediaValidationFile) => {
   }
 };
 
+export const validateAvatarMediaFile = (file: MediaValidationFile) => {
+  if (!isAllowedAvatarMimeType(file.mimeType)) {
+    throw badRequest("Unsupported avatar media type");
+  }
+
+  if (file.size > AVATAR_IMAGE_MAX_BYTES) {
+    throw badRequest("Avatar image exceeds 5 MB limit");
+  }
+};
+
 export const generateNewsMediaFileName = (originalName: string, mimeType: string) => {
   const extension = resolveExtension(originalName, mimeType);
   return `${randomUUID()}${extension}`;
@@ -125,6 +141,7 @@ export const generateNewsMediaFileName = (originalName: string, mimeType: string
 
 export const buildNewsPostFileUrl = (fileName: string) => `/uploads/news/posts/${fileName}`;
 export const buildNewsStoryFileUrl = (fileName: string) => `/uploads/news/stories/${fileName}`;
+export const buildAvatarFileUrl = (fileName: string) => `/uploads/avatars/${fileName}`;
 
 export const persistNewsMedia = async ({
   kind,
@@ -146,6 +163,28 @@ export const persistNewsMedia = async ({
     fileName: originalName,
     fileUrl: kind === "post" ? buildNewsPostFileUrl(fileName) : buildNewsStoryFileUrl(fileName),
     mediaType: resolveNewsMediaType(mimeType),
+    mimeType,
+    sizeBytes: buffer.byteLength,
+  };
+};
+
+export const persistAvatarMedia = async ({
+  originalName,
+  mimeType,
+  buffer,
+}: Omit<PersistMediaParams, "kind">) => {
+  validateAvatarMediaFile({
+    mimeType,
+    size: buffer.byteLength,
+  });
+
+  const fileName = generateNewsMediaFileName(originalName, mimeType);
+  const absolutePath = path.join(getAvatarsMediaDir(), fileName);
+  await fsAsync.writeFile(absolutePath, buffer);
+
+  return {
+    fileName: originalName,
+    fileUrl: buildAvatarFileUrl(fileName),
     mimeType,
     sizeBytes: buffer.byteLength,
   };

@@ -20,6 +20,7 @@ interface SessionStore {
     fun save(value: SessionState)
     fun clear()
     fun updateTokens(accessToken: String, refreshToken: String)
+    fun updateUser(user: AuthUser)
 }
 
 @Singleton
@@ -56,6 +57,11 @@ class EncryptedSessionStore @Inject constructor(
         save(updated)
     }
 
+    override fun updateUser(user: AuthUser) {
+        val existing = _session.value ?: return
+        save(existing.copy(user = user))
+    }
+
     private fun readSession(): SessionState? {
         val raw = preferences.getString(KEY_SESSION_JSON, null) ?: return null
         return try {
@@ -87,6 +93,7 @@ fun SessionState.withMustChangePasswordFlag(flag: Boolean?): SessionState {
         name = user.name,
         phone = user.phone,
         role = user.role,
+        avatarUrl = user.avatarUrl,
         mustChangePassword = flag,
     )
     return copy(user = updatedUser)

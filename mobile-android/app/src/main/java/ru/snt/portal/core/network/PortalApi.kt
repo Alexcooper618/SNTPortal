@@ -25,6 +25,7 @@ import ru.snt.portal.core.model.NewsStoriesResponse
 import ru.snt.portal.core.model.NewsStoryViewResponse
 import ru.snt.portal.core.model.RefreshRequest
 import ru.snt.portal.core.model.TenantsResponse
+import ru.snt.portal.core.model.UserEnvelopeResponse
 import ru.snt.portal.core.model.WeatherResponse
 
 interface PortalApi {
@@ -67,6 +68,15 @@ interface PortalApi {
 
     @POST("chat/rooms/{roomId}/read")
     suspend fun markRoomRead(@Path("roomId") roomId: String)
+
+    @Multipart
+    @POST("users/me/avatar")
+    suspend fun uploadMyAvatar(
+        @Part avatar: MultipartBody.Part,
+    ): UserEnvelopeResponse
+
+    @DELETE("users/me/avatar")
+    suspend fun deleteMyAvatar(): UserEnvelopeResponse
 
     @GET("news/feed")
     suspend fun getNewsFeed(

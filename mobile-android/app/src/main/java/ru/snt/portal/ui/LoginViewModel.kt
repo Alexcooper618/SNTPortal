@@ -72,7 +72,7 @@ class LoginViewModel @Inject constructor(
             return
         }
         if (!isValidRuPhone(state.phone)) {
-            _uiState.update { it.copy(error = "Введите телефон в формате +7XXXXXXXXXX") }
+            _uiState.update { it.copy(error = "Введите номер в формате +7 (900) 000-00-00") }
             return
         }
 

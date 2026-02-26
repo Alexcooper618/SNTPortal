@@ -7,6 +7,7 @@ import ru.snt.portal.core.model.ChatMessageAuthor
 import ru.snt.portal.core.model.ChatMessageDto
 import ru.snt.portal.core.model.ChatReplyDto
 import ru.snt.portal.core.model.ChatRoomDto
+import ru.snt.portal.core.model.ChatRoomPeer
 import ru.snt.portal.core.model.ChatSendMessageRequest
 import ru.snt.portal.core.network.PortalApi
 import ru.snt.portal.core.network.toUserMessage
@@ -119,7 +120,11 @@ class ChatRepository @Inject constructor(
         id = id,
         tenantSlug = tenantSlug,
         name = name,
+        title = title.ifBlank { name },
+        kind = kind,
         isPrivate = isPrivate,
+        peerName = peer?.name,
+        peerAvatarUrl = peer?.avatarUrl,
         updatedAt = updatedAt,
         unreadCount = unreadCount,
         lastReadAt = lastReadAt,
@@ -133,6 +138,7 @@ class ChatRepository @Inject constructor(
         lastMessageAuthorId = lastMessage?.author?.id,
         lastMessageAuthorName = lastMessage?.author?.name,
         lastMessageAuthorRole = lastMessage?.author?.role,
+        lastMessageAuthorAvatarUrl = lastMessage?.author?.avatarUrl,
     )
 
     private fun CachedChatRoomEntity.toModel(): ChatRoomDto = ChatRoomDto(
@@ -140,6 +146,18 @@ class ChatRepository @Inject constructor(
         name = name,
         isPrivate = isPrivate,
         updatedAt = updatedAt,
+        title = title.ifBlank { name },
+        kind = kind.ifBlank { if (isPrivate) "DIRECT" else "TOPIC" },
+        peer = if (peerName.isNullOrBlank()) {
+            null
+        } else {
+            ChatRoomPeer(
+                id = -1,
+                name = peerName,
+                role = if (isPrivate) "USER" else "",
+                avatarUrl = peerAvatarUrl,
+            )
+        },
         members = emptyList(),
         lastMessage = if (
             lastMessageId != null &&
@@ -162,6 +180,7 @@ class ChatRepository @Inject constructor(
                     id = lastMessageAuthorId,
                     name = lastMessageAuthorName,
                     role = lastMessageAuthorRole,
+                    avatarUrl = lastMessageAuthorAvatarUrl,
                 ),
                 replyTo = null,
             )

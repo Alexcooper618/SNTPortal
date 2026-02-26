@@ -30,6 +30,7 @@ data class AuthUser(
     val name: String,
     val phone: String,
     val role: String,
+    val avatarUrl: String? = null,
     val mustChangePassword: Boolean = false,
 )
 
@@ -76,6 +77,7 @@ data class ChatMessageAuthor(
     val id: Int,
     val name: String,
     val role: String,
+    val avatarUrl: String? = null,
 )
 
 data class ChatReplyDto(
@@ -101,6 +103,7 @@ data class ChatRoomMemberUser(
     val id: Int,
     val name: String,
     val role: String,
+    val avatarUrl: String? = null,
 )
 
 data class ChatRoomMember(
@@ -108,11 +111,21 @@ data class ChatRoomMember(
     val user: ChatRoomMemberUser,
 )
 
+data class ChatRoomPeer(
+    val id: Int,
+    val name: String,
+    val role: String,
+    val avatarUrl: String? = null,
+)
+
 data class ChatRoomDto(
     val id: String,
     val name: String,
     val isPrivate: Boolean,
     val updatedAt: String,
+    val kind: String = if (isPrivate) "DIRECT" else "TOPIC",
+    val title: String = name,
+    val peer: ChatRoomPeer? = null,
     val members: List<ChatRoomMember> = emptyList(),
     val lastMessage: ChatMessageDto? = null,
     val unreadCount: Int = 0,
@@ -210,4 +223,8 @@ data class NewsCreateStoryResponse(
 data class NewsStoryViewResponse(
     val ok: Boolean = true,
     val viewedAt: String? = null,
+)
+
+data class UserEnvelopeResponse(
+    val user: AuthUser,
 )

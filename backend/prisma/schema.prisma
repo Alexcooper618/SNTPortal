@@ -215,6 +215,8 @@ model User {
   tenant            Tenant              @relation(fields: [tenantId], references: [id])
   phone             String
   name              String
+  avatarUrl         String?
+  avatarUpdatedAt   DateTime?
   role              UserRole            @default(USER)
   isActive          Boolean             @default(true)
   passwordHash      String?

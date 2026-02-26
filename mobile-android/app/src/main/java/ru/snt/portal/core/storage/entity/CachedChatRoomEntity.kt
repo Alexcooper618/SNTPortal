@@ -13,7 +13,11 @@ data class CachedChatRoomEntity(
     val id: String,
     val tenantSlug: String,
     val name: String,
+    val title: String,
+    val kind: String,
     val isPrivate: Boolean,
+    val peerName: String?,
+    val peerAvatarUrl: String?,
     val updatedAt: String,
     val unreadCount: Int,
     val lastReadAt: String?,
@@ -27,4 +31,5 @@ data class CachedChatRoomEntity(
     val lastMessageAuthorId: Int?,
     val lastMessageAuthorName: String?,
     val lastMessageAuthorRole: String?,
+    val lastMessageAuthorAvatarUrl: String?,
 )
