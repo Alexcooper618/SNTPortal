@@ -30,10 +30,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -53,8 +53,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -84,10 +87,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -161,9 +167,32 @@ fun NativePortalApp(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LoginScreen(viewModel: LoginViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var tenantExpanded by rememberSaveable { mutableStateOf(false) }
+    var tenantQuery by rememberSaveable { mutableStateOf("") }
+    val selectedTenant = remember(state.tenantSlug, state.tenants) {
+        state.tenants.firstOrNull { it.slug == state.tenantSlug }
+    }
+    val filteredTenants = remember(tenantQuery, state.tenants) {
+        val query = tenantQuery.trim()
+        if (query.isBlank()) {
+            state.tenants
+        } else {
+            state.tenants.filter { tenant ->
+                tenant.name.contains(query, ignoreCase = true) ||
+                    tenant.slug.contains(query, ignoreCase = true)
+            }
+        }
+    }
+
+    LaunchedEffect(state.tenantSlug, state.tenants, tenantExpanded) {
+        if (!tenantExpanded) {
+            tenantQuery = selectedTenant?.name ?: state.tenantSlug
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -184,23 +213,50 @@ private fun LoginScreen(viewModel: LoginViewModel) {
         )
         Spacer(modifier = Modifier.height(20.dp))
 
-        OutlinedTextField(
-            value = state.tenantSlug,
-            onValueChange = viewModel::onTenantChange,
-            label = { Text("СНТ (slug)") },
+        ExposedDropdownMenuBox(
+            expanded = tenantExpanded,
+            onExpandedChange = { tenantExpanded = it },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-        )
+        ) {
+            OutlinedTextField(
+                value = tenantQuery,
+                onValueChange = { newQuery ->
+                    tenantQuery = newQuery
+                    viewModel.onTenantChange("")
+                    tenantExpanded = true
+                },
+                label = { Text("СНТ") },
+                placeholder = { Text("Выберите СНТ") },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                singleLine = true,
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = tenantExpanded)
+                },
+            )
 
-        if (state.tenants.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(state.tenants.take(8), key = { it.slug }) { tenant ->
-                    AssistChip(
-                        onClick = { viewModel.onTenantChange(tenant.slug) },
-                        label = { Text(tenant.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        colors = AssistChipDefaults.assistChipColors(),
+            DropdownMenu(
+                expanded = tenantExpanded,
+                onDismissRequest = { tenantExpanded = false },
+            ) {
+                if (filteredTenants.isEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("Ничего не найдено") },
+                        onClick = {},
+                        enabled = false,
                     )
+                } else {
+                    filteredTenants.forEach { tenant ->
+                        DropdownMenuItem(
+                            text = { Text(tenant.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            onClick = {
+                                viewModel.onTenantChange(tenant.slug)
+                                tenantQuery = tenant.name
+                                tenantExpanded = false
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -212,6 +268,7 @@ private fun LoginScreen(viewModel: LoginViewModel) {
             label = { Text("Телефон") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -487,17 +544,20 @@ private fun ChatScreen(viewModel: ChatViewModel, currentUserId: Int) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Bottom,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             OutlinedTextField(
                 value = state.draftMessage,
                 onValueChange = viewModel::onDraftChanged,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp),
                 placeholder = { Text("Сообщение") },
-                minLines = 1,
-                maxLines = 4,
+                singleLine = true,
             )
             Button(
                 onClick = viewModel::sendMessage,
@@ -530,11 +590,17 @@ private fun MessageBubble(
         Card(
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = bg),
-            modifier = Modifier.widthIn(max = 340.dp),
+            modifier = Modifier.fillMaxWidth(0.76f),
         ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                Text(author, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.height(4.dp))
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                if (!mine) {
+                    Text(
+                        author,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
                 Text(body, style = MaterialTheme.typography.bodyLarge)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -967,7 +1033,7 @@ private fun NewsPostCard(
     apiBaseUrl: String,
     onToggleLike: () -> Unit,
 ) {
-    ElevatedCard {
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(post.author.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(post.createdAt.replace("T", " ").take(16), style = MaterialTheme.typography.labelSmall)

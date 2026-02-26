@@ -15,7 +15,7 @@ import javax.inject.Inject
 
 data class LoginUiState(
     val tenantSlug: String = "",
-    val phone: String = "",
+    val phone: String = "+7",
     val password: String = "",
     val isLoading: Boolean = false,
     val tenants: List<TenantItem> = emptyList(),
@@ -39,7 +39,7 @@ class LoginViewModel @Inject constructor(
     }
 
     fun onPhoneChange(value: String) {
-        _uiState.update { it.copy(phone = value, error = null) }
+        _uiState.update { it.copy(phone = normalizeRuPhone(value), error = null) }
     }
 
     fun onPasswordChange(value: String) {
@@ -71,6 +71,10 @@ class LoginViewModel @Inject constructor(
             _uiState.update { it.copy(error = "Заполните СНТ, телефон и пароль") }
             return
         }
+        if (!isValidRuPhone(state.phone)) {
+            _uiState.update { it.copy(error = "Введите телефон в формате +7XXXXXXXXXX") }
+            return
+        }
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -90,5 +94,23 @@ class LoginViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private fun normalizeRuPhone(raw: String): String {
+        val digitsOnly = raw.filter { it.isDigit() }
+        if (digitsOnly.isEmpty()) return "+7"
+
+        val normalizedDigits = when {
+            digitsOnly.startsWith("7") -> digitsOnly
+            digitsOnly.startsWith("8") -> "7${digitsOnly.drop(1)}"
+            else -> "7$digitsOnly"
+        }.take(11)
+
+        return "+$normalizedDigits"
+    }
+
+    private fun isValidRuPhone(value: String): Boolean {
+        val digits = value.filter { it.isDigit() }
+        return digits.length == 11 && digits.startsWith("7")
     }
 }
