@@ -49,7 +49,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.BlurOn
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Delete
@@ -62,6 +66,7 @@ import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Badge
@@ -103,6 +108,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -123,6 +129,10 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okio.BufferedSink
 import java.io.IOException
+import java.text.NumberFormat
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.util.Locale
 import ru.snt.portal.core.model.NewsAttachment
 import ru.snt.portal.core.model.NewsPost
 import ru.snt.portal.core.model.NewsStoryGroup
@@ -419,7 +429,8 @@ private fun PortalScaffold(
             when (targetTab) {
                 NativeTab.Dashboard -> DashboardScreen(
                     viewModel = dashboardViewModel,
-                    onOpenWebSection = { path -> webPath = path },
+                    userName = session.user.name,
+                    onOpenChat = { tab = NativeTab.Chat },
                 )
 
                 NativeTab.News -> NewsScreen(viewModel = newsViewModel, apiBaseUrl = apiBaseUrl)
@@ -443,9 +454,28 @@ private fun PortalScaffold(
 @Composable
 private fun DashboardScreen(
     viewModel: DashboardViewModel,
-    onOpenWebSection: (String) -> Unit,
+    userName: String,
+    onOpenChat: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val weather = state.weather
+    val localHour = remember(weather?.tenant?.timeZone) { resolveLocalHour(weather?.tenant?.timeZone) }
+    val greeting = remember(localHour) { resolveGreetingByHour(localHour) }
+    val greetingIcon = remember(weather?.weather?.weatherCode, localHour) {
+        resolveGreetingIconByWeather(weather?.weather?.weatherCode, localHour)
+    }
+    val weatherLabel = remember(weather?.weather?.weatherCode, localHour) {
+        resolveWeatherLabel(weather?.weather?.weatherCode, localHour)
+    }
+    val locationLine = weather?.let {
+        listOfNotNull(it.tenant.name, it.tenant.location ?: it.tenant.address).joinToString(", ")
+    }
+    val temperatureLine = weather?.weather?.temperatureC?.let { "${it.toInt()}°C" } ?: "—"
+    val hasDebt = state.myOutstandingCents > 0
+    val myPaymentsValue = if (hasDebt) "-${formatRub(state.myOutstandingCents)}" else "Задолженности отсутствуют"
+    val myPaymentsHint = if (hasDebt) "Оплатите задолженность" else "Все хорошо"
+    val debtContainerColor = if (hasDebt) Color(0xFFFFF4CC) else Color(0xFFDCFCE7)
+    val debtContentColor = if (hasDebt) Color(0xFF725400) else Color(0xFF14532D)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -459,41 +489,94 @@ private fun DashboardScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Панель жителя", style = MaterialTheme.typography.labelLarge)
-                    Text(
-                        "Добро пожаловать",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(
+                            imageVector = greetingIcon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            "$greeting, $userName!",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
 
                     if (state.loading) {
                         CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                    } else if (state.weather != null) {
-                        val weather = state.weather!!
+                    } else if (weather != null) {
                         Text(
-                            "${weather.tenant.name}, ${weather.tenant.location ?: weather.tenant.address ?: ""}",
+                            locationLine.orEmpty(),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Text(
-                            "${weather.weather.temperatureC.toInt()}°C",
-                            style = MaterialTheme.typography.displaySmall,
-                            fontWeight = FontWeight.Bold,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                temperatureLine,
+                                style = MaterialTheme.typography.displaySmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                weatherLabel,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
 
                     state.error?.let { errorText ->
                         Text(errorText, color = MaterialTheme.colorScheme.error)
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { onOpenWebSection("/payments") }) {
-                            Icon(Icons.Outlined.Payments, contentDescription = null)
-                            Spacer(modifier = Modifier.size(6.dp))
-                            Text("Оплатить")
-                        }
-                        OutlinedButton(onClick = { onOpenWebSection("/incidents") }) {
-                            Text("Обращения")
-                        }
+                    Button(onClick = onOpenChat) {
+                        Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null)
+                        Spacer(modifier = Modifier.size(6.dp))
+                        Text("Открыть чат")
+                    }
+                }
+            }
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                ElevatedCard(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Баланс СНТ", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            formatRub(state.sntBalanceCents),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text("Общая копилка СНТ", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+
+                ElevatedCard(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = debtContainerColor,
+                        contentColor = debtContentColor,
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Мои платежи", style = MaterialTheme.typography.labelLarge)
+                        Text(
+                            myPaymentsValue,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(myPaymentsHint, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -505,6 +588,55 @@ private fun DashboardScreen(
             }
         }
     }
+}
+
+private fun resolveLocalHour(timeZone: String?): Int {
+    return if (!timeZone.isNullOrBlank()) {
+        runCatching { ZonedDateTime.now(ZoneId.of(timeZone.trim())).hour }.getOrElse { ZonedDateTime.now().hour }
+    } else {
+        ZonedDateTime.now().hour
+    }
+}
+
+private fun resolveGreetingByHour(hour: Int): String {
+    return when {
+        hour in 5..11 -> "Доброе утро"
+        hour in 23..24 || hour in 0..4 -> "Доброй ночи"
+        else -> "Добрый день"
+    }
+}
+
+private fun resolveGreetingIconByWeather(weatherCode: Int?, hour: Int): ImageVector {
+    val isNight = hour >= 23 || hour < 5
+    return when {
+        weatherCode == 0 && isNight -> Icons.Outlined.Bedtime
+        weatherCode == 0 -> Icons.Outlined.WbSunny
+        weatherCode == 45 || weatherCode == 48 -> Icons.Outlined.BlurOn
+        weatherCode != null && weatherCode in 95..99 -> Icons.Outlined.Bolt
+        else -> Icons.Outlined.Cloud
+    }
+}
+
+private fun resolveWeatherLabel(weatherCode: Int?, hour: Int): String {
+    val isNight = hour >= 23 || hour < 5
+    return when {
+        weatherCode == 0 && isNight -> "Ясная ночь"
+        weatherCode == 0 -> "Ясно"
+        weatherCode != null && weatherCode in 1..3 -> "Переменная облачность"
+        weatherCode == 45 || weatherCode == 48 -> "Туман"
+        weatherCode != null && ((weatherCode in 51..57) || (weatherCode in 61..67) || (weatherCode in 80..82)) -> "Дождь"
+        weatherCode != null && ((weatherCode in 71..77) || weatherCode == 85 || weatherCode == 86) -> "Снег"
+        weatherCode != null && weatherCode in 95..99 -> "Гроза"
+        else -> "Погода"
+    }
+}
+
+private fun formatRub(cents: Int): String {
+    val formatter = NumberFormat.getNumberInstance(Locale("ru", "RU")).apply {
+        maximumFractionDigits = 0
+        minimumFractionDigits = 0
+    }
+    return "${formatter.format(cents / 100.0)} ₽"
 }
 
 private enum class ChatRoomFilter(val label: String) {

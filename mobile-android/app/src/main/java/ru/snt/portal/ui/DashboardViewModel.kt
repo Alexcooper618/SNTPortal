@@ -16,6 +16,8 @@ import javax.inject.Inject
 data class DashboardUiState(
     val loading: Boolean = true,
     val weather: WeatherResponse? = null,
+    val myOutstandingCents: Int = 0,
+    val sntBalanceCents: Int = 0,
     val error: String? = null,
 )
 
@@ -34,9 +36,17 @@ class DashboardViewModel @Inject constructor(
     fun refresh(force: Boolean = true) {
         viewModelScope.launch {
             _uiState.update { it.copy(loading = true, error = null) }
-            when (val result = dashboardRepository.loadWeather(force = force)) {
+            when (val result = dashboardRepository.loadDashboard(force = force)) {
                 is ApiResult.Success -> {
-                    _uiState.update { it.copy(loading = false, weather = result.data, error = null) }
+                    _uiState.update {
+                        it.copy(
+                            loading = false,
+                            weather = result.data.weather,
+                            myOutstandingCents = result.data.myBalance.outstandingCents,
+                            sntBalanceCents = result.data.sntBalance.sntBalanceCents,
+                            error = null,
+                        )
+                    }
                 }
 
                 is ApiResult.Error -> {

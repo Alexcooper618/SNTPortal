@@ -72,6 +72,18 @@ data class WeatherResponse(
     val weather: WeatherCurrent,
 )
 
+data class BillingBalanceMeResponse(
+    val totalDueCents: Int = 0,
+    val totalPaidCents: Int = 0,
+    val outstandingCents: Int = 0,
+)
+
+data class BillingSntBalanceResponse(
+    val openingCollectedCents: Int = 0,
+    val collectedCents: Int = 0,
+    val sntBalanceCents: Int = 0,
+)
+
 data class ChatUnreadSummary(
     val unreadRooms: Int = 0,
     val unreadMessages: Int = 0,

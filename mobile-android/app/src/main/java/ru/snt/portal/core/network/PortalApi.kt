@@ -13,6 +13,8 @@ import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import ru.snt.portal.core.model.BillingBalanceMeResponse
+import ru.snt.portal.core.model.BillingSntBalanceResponse
 import ru.snt.portal.core.model.ChatContactsResponse
 import ru.snt.portal.core.model.ChatDirectRoomResponse
 import ru.snt.portal.core.model.ChatMessagesResponse
@@ -63,6 +65,12 @@ interface PortalApi {
 
     @GET("weather/current")
     suspend fun getCurrentWeather(): WeatherResponse
+
+    @GET("billing/balance/me")
+    suspend fun getMyBillingBalance(): BillingBalanceMeResponse
+
+    @GET("billing/balance/snt")
+    suspend fun getSntBillingBalance(): BillingSntBalanceResponse
 
     @GET("chat/rooms")
     suspend fun getChatRooms(): ChatRoomsResponse
