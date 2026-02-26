@@ -11,7 +11,6 @@ import {
   MessageSquareText,
   Megaphone,
   ShieldCheck,
-  TriangleAlert,
   Vote as VoteIcon,
 } from "lucide-react";
 import { PortalShell } from "@/components/portal-shell";
@@ -19,6 +18,7 @@ import { Panel, StatCard } from "@/components/ui-kit";
 import { WeatherWidget, type WeatherWidgetData } from "@/components/weather-widget";
 import { apiRequest, ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { getTimeZoneHour, resolveGreetingIcon, resolveGreetingText } from "@/lib/weather-ui";
 
 interface BalanceResponse {
   totalDueCents: number;
@@ -28,6 +28,12 @@ interface BalanceResponse {
 
 interface NotificationResponse {
   unreadCount: number;
+}
+
+interface SntBalanceResponse {
+  openingCollectedCents: number;
+  collectedCents: number;
+  sntBalanceCents: number;
 }
 
 interface IncidentItem {
@@ -148,7 +154,7 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [outstanding, setOutstanding] = useState(0);
-  const [paid, setPaid] = useState(0);
+  const [sntBalanceCents, setSntBalanceCents] = useState(0);
   const [unread, setUnread] = useState(0);
   const [incidents, setIncidents] = useState<IncidentItem[]>([]);
   const [news, setNews] = useState<NewsPost[]>([]);
@@ -176,9 +182,23 @@ export default function DashboardPage() {
           tenantSlug: session.tenantSlug,
         }).catch((err) => err);
 
-        const [balance, notifications, incidentData, newsData, invoiceData, meetingsData, votesData, weatherResult] =
+        const [
+          balance,
+          sntBalance,
+          notifications,
+          incidentData,
+          newsData,
+          invoiceData,
+          meetingsData,
+          votesData,
+          weatherResult,
+        ] =
           await Promise.all([
             apiRequest<BalanceResponse>("/billing/balance/me", {
+              token: session.accessToken,
+              tenantSlug: session.tenantSlug,
+            }),
+            apiRequest<SntBalanceResponse>("/billing/balance/snt", {
               token: session.accessToken,
               tenantSlug: session.tenantSlug,
             }),
@@ -210,7 +230,7 @@ export default function DashboardPage() {
           ]);
 
         setOutstanding(balance.outstandingCents);
-        setPaid(balance.totalPaidCents);
+        setSntBalanceCents(sntBalance.sntBalanceCents);
         setUnread(notifications.unreadCount);
 
         const incidentItems =
@@ -245,7 +265,7 @@ export default function DashboardPage() {
         }
       } catch (_error) {
         setOutstanding(0);
-        setPaid(0);
+        setSntBalanceCents(0);
         setUnread(0);
         setIncidents([]);
         setNews([]);
@@ -295,10 +315,16 @@ export default function DashboardPage() {
     return upcoming[0]?.item ?? null;
   }, [meetings]);
 
-  const balanceValue = loading ? "..." : toRub(-outstanding);
-  const paidValue = loading ? "..." : toRub(paid);
+  const sntBalanceValue = loading ? "..." : toRub(sntBalanceCents);
+  const hasMyDebt = !loading && outstanding > 0;
+  const myPaymentsValue = loading ? "..." : hasMyDebt ? `-${toRub(outstanding)}` : "Задолженности отсутствуют";
+  const myPaymentsHint = loading ? "Проверяем начисления" : hasMyDebt ? "Оплатите задолженность" : "Все хорошо";
+  const myPaymentsVariant = loading ? "default" : hasMyDebt ? "warning" : "success";
   const incidentValue = loading ? "..." : String(openIncidents.length);
   const votesValue = loading ? "..." : String(openVotes.length);
+  const localHour = getTimeZoneHour(weather?.tenant.timeZone ?? null);
+  const greeting = resolveGreetingText(localHour);
+  const GreetingIcon = resolveGreetingIcon(weather?.weather.weatherCode ?? null, localHour);
 
   if (!ready || !session) {
     return <div className="center-screen">Загрузка...</div>;
@@ -310,7 +336,12 @@ export default function DashboardPage() {
         <div className="hero-top">
           <div className="hero-copy">
             <p className="hero-kicker">{session.user.role === "CHAIRMAN" ? "Панель председателя" : "Кабинет жителя"}</p>
-            <h2 className="hero-title">{session.user.name}, добро пожаловать</h2>
+            <div className="hero-title-row">
+              <span className="hero-greeting-icon" aria-hidden="true">
+                <GreetingIcon size={18} />
+              </span>
+              <h2 className="hero-title">{`${greeting}, ${session.user.name}!`}</h2>
+            </div>
             <p className="hero-sub">СНТ: {session.tenantSlug}</p>
           </div>
           <WeatherWidget
@@ -325,26 +356,18 @@ export default function DashboardPage() {
         <div className="hero-actions hero-actions-compact">
           <button
             type="button"
-            className="primary-button hero-button"
+            className="primary-button hero-button hero-button-wide"
             onClick={() => window.dispatchEvent(new CustomEvent("snt:open-messenger"))}
           >
             <MessageSquareText size={18} />
             Открыть чат
           </button>
-          <Link href="/payments" className="secondary-button hero-button">
-            <CreditCard size={18} />
-            Оплатить
-          </Link>
-          <Link href="/incidents" className="secondary-button hero-button hero-button-wide">
-            <TriangleAlert size={18} />
-            Создать обращение
-          </Link>
         </div>
       </section>
 
       <div className="grid-4">
-        <StatCard label="Баланс" value={balanceValue} hint="Отрицательное значение означает долг" />
-        <StatCard label="Оплачено" value={paidValue} hint="Сумма подтвержденных платежей" />
+        <StatCard label="Баланс СНТ" value={sntBalanceValue} hint="Общая копилка СНТ" />
+        <StatCard label="Мои платежи" value={myPaymentsValue} hint={myPaymentsHint} variant={myPaymentsVariant} />
         <StatCard label="Открытые обращения" value={incidentValue} hint="OPEN и IN_PROGRESS" />
         <StatCard label="Открытые голосования" value={votesValue} hint="Требуют участия" />
       </div>

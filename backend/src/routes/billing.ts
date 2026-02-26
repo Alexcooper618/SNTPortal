@@ -30,6 +30,40 @@ const buildBillingNotificationBody = (params: {
   return `${params.title} · к оплате ${amount} до ${due}`;
 };
 
+const getSntBalanceSummary = async (tenantId: number) => {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: {
+      sntOpeningCollectedCents: true,
+    },
+  });
+
+  if (!tenant) {
+    throw customError(404, "TENANT_NOT_FOUND", "Tenant not found");
+  }
+
+  const aggregate = await prisma.invoice.aggregate({
+    where: {
+      tenantId,
+      status: {
+        not: InvoiceStatus.CANCELED,
+      },
+    },
+    _sum: {
+      paidCents: true,
+    },
+  });
+
+  const openingCollectedCents = tenant.sntOpeningCollectedCents;
+  const collectedCents = aggregate._sum.paidCents ?? 0;
+
+  return {
+    openingCollectedCents,
+    collectedCents,
+    sntBalanceCents: openingCollectedCents + collectedCents,
+  };
+};
+
 const getPrimaryPlotByUser = async (tenantId: number, userIds: number[]) => {
   if (userIds.length === 0) return new Map<number, number>();
 
@@ -1112,6 +1146,61 @@ router.post(
     });
 
     res.json({ ok: true });
+  })
+);
+
+router.get(
+  "/balance/snt",
+  asyncHandler(async (req, res) => {
+    const summary = await getSntBalanceSummary(req.user!.tenantId);
+    res.json(summary);
+  })
+);
+
+router.patch(
+  "/balance/snt/opening",
+  requireRole("CHAIRMAN"),
+  asyncHandler(async (req, res) => {
+    const openingCollectedCents = assertNumber(req.body.openingCollectedCents, "openingCollectedCents");
+
+    if (!Number.isInteger(openingCollectedCents) || openingCollectedCents < 0) {
+      throw badRequest("openingCollectedCents must be a non-negative integer");
+    }
+
+    const current = await prisma.tenant.findUnique({
+      where: { id: req.user!.tenantId },
+      select: {
+        sntOpeningCollectedCents: true,
+      },
+    });
+
+    if (!current) {
+      throw customError(404, "TENANT_NOT_FOUND", "Tenant not found");
+    }
+
+    await prisma.tenant.update({
+      where: { id: req.user!.tenantId },
+      data: {
+        sntOpeningCollectedCents: openingCollectedCents,
+        sntOpeningCollectedUpdatedAt: new Date(),
+      },
+    });
+
+    await logAudit({
+      tenantId: req.user!.tenantId,
+      actorId: req.user!.userId,
+      action: "SNT_OPENING_BALANCE_UPDATED",
+      entityType: "Tenant",
+      entityId: String(req.user!.tenantId),
+      requestId: req.requestId,
+      metadata: {
+        previousOpeningCollectedCents: current.sntOpeningCollectedCents,
+        openingCollectedCents,
+      },
+    });
+
+    const summary = await getSntBalanceSummary(req.user!.tenantId);
+    res.json(summary);
   })
 );
 

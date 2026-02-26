@@ -1,0 +1,3 @@
+ALTER TABLE "Tenant"
+  ADD COLUMN IF NOT EXISTS "sntOpeningCollectedCents" INTEGER NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS "sntOpeningCollectedUpdatedAt" TIMESTAMP(3);

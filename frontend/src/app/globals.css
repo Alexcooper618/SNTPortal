@@ -319,6 +319,29 @@ a {
   font-size: 20px;
 }
 
+.hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-title-row .hero-title {
+  margin: 0;
+}
+
+.hero-greeting-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(31, 107, 90, 0.24);
+  background: rgba(31, 107, 90, 0.12);
+  color: #0f4f41;
+  flex-shrink: 0;
+}
+
 .hero-sub {
   margin: 6px 0 0;
   color: #3a5564;
@@ -1264,6 +1287,24 @@ a {
   border-radius: var(--radius);
   background: #fff;
   padding: 14px;
+}
+
+.stat-card.success {
+  border-color: rgba(31, 148, 94, 0.35);
+  background: linear-gradient(150deg, rgba(233, 255, 244, 0.95), rgba(245, 255, 250, 0.98));
+}
+
+.stat-card.warning {
+  border-color: rgba(214, 149, 0, 0.35);
+  background: linear-gradient(150deg, rgba(255, 247, 219, 0.96), rgba(255, 252, 239, 0.98));
+}
+
+.stat-card.success .stat-value {
+  color: #186244;
+}
+
+.stat-card.warning .stat-value {
+  color: #8a5b00;
 }
 
 .stat-label {
@@ -2735,6 +2776,12 @@ a {
   letter-spacing: -0.03em;
 }
 
+.hero-greeting-icon {
+  border-color: rgba(78, 168, 255, 0.34);
+  background: rgba(78, 168, 255, 0.2);
+  color: #d8ecff;
+}
+
 .hero-sub {
   color: var(--neo-text-secondary);
 }
@@ -2894,6 +2941,20 @@ a {
     radial-gradient(circle at 14% 0%, rgba(143, 124, 255, 0.2), transparent 52%);
 }
 
+.stat-card.success {
+  border-color: rgba(63, 193, 129, 0.38);
+  background:
+    linear-gradient(145deg, rgba(21, 56, 45, 0.95), rgba(16, 39, 33, 0.97)),
+    radial-gradient(circle at 10% 0%, rgba(63, 193, 129, 0.28), transparent 54%);
+}
+
+.stat-card.warning {
+  border-color: rgba(255, 191, 81, 0.38);
+  background:
+    linear-gradient(145deg, rgba(76, 56, 18, 0.95), rgba(57, 42, 14, 0.97)),
+    radial-gradient(circle at 10% 0%, rgba(255, 191, 81, 0.25), transparent 54%);
+}
+
 .stat-label,
 .stat-hint {
   color: var(--neo-text-tertiary);
@@ -2903,6 +2964,18 @@ a {
   color: #fff;
   font-size: clamp(28px, 2.4vw, 38px);
   letter-spacing: -0.03em;
+}
+
+.stat-card.success .stat-value,
+.stat-card.warning .stat-value {
+  color: #fff;
+}
+
+.stat-card.success .stat-label,
+.stat-card.success .stat-hint,
+.stat-card.warning .stat-label,
+.stat-card.warning .stat-hint {
+  color: rgba(237, 243, 255, 0.82);
 }
 
 .progress {

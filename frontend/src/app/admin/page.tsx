@@ -66,6 +66,12 @@ interface AuditListResponse {
   items: Array<{ id: string; action: string; createdAt: string }>;
 }
 
+interface SntBalanceResponse {
+  openingCollectedCents: number;
+  collectedCents: number;
+  sntBalanceCents: number;
+}
+
 interface UserDetailResponse {
   user: AdminUser;
   audit: Array<{ id: string; action: string; createdAt: string; actor?: { id: number; name: string; role: string } }>;
@@ -94,9 +100,18 @@ const formatDateTime = (value?: string | null) => {
   return dt.toLocaleString("ru-RU");
 };
 
+const toRub = (cents: number) => `${(cents / 100).toLocaleString("ru-RU")} ₽`;
+
 const toPlotLabel = (membership: PlotMembership) => {
   const suffix = membership.isPrimary ? " (осн.)" : "";
   return `№${membership.plot.number}${suffix}`;
+};
+
+const parseRubToCents = (raw: string): number => {
+  const normalized = raw.trim().replace(/\s/g, "").replace(",", ".");
+  const value = Number(normalized);
+  if (!Number.isFinite(value) || value < 0) return Number.NaN;
+  return Math.round(value * 100);
 };
 
 function UserDrawer(props: {
@@ -448,6 +463,9 @@ export default function AdminPage() {
   const [chargesCount, setChargesCount] = useState<number | null>(null);
   const [paymentsCount, setPaymentsCount] = useState<number | null>(null);
   const [auditEvents, setAuditEvents] = useState<Array<{ id: string; action: string; createdAt: string }>>([]);
+  const [sntBalance, setSntBalance] = useState<SntBalanceResponse | null>(null);
+  const [openingCollectedRub, setOpeningCollectedRub] = useState("0");
+  const [savingSntOpening, setSavingSntOpening] = useState(false);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -578,6 +596,50 @@ export default function AdminPage() {
     })
       .then((response) => setAuditEvents(response.items))
       .catch(() => setAuditEvents([]));
+
+    apiRequest<SntBalanceResponse>("/billing/balance/snt", {
+      token,
+      tenantSlug,
+    })
+      .then((response) => {
+        setSntBalance(response);
+        setOpeningCollectedRub((response.openingCollectedCents / 100).toLocaleString("ru-RU"));
+      })
+      .catch(() => setSntBalance(null));
+  };
+
+  const saveSntOpeningBalance = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!token || !tenantSlug) return;
+
+    const openingCollectedCents = parseRubToCents(openingCollectedRub);
+    if (!Number.isFinite(openingCollectedCents)) {
+      setError("Начальный остаток должен быть числом не меньше 0");
+      return;
+    }
+
+    setSavingSntOpening(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await apiRequest<SntBalanceResponse>("/billing/balance/snt/opening", {
+        method: "PATCH",
+        token,
+        tenantSlug,
+        body: {
+          openingCollectedCents,
+        },
+      });
+
+      setSntBalance(response);
+      setOpeningCollectedRub((response.openingCollectedCents / 100).toLocaleString("ru-RU"));
+      setNotice("Начальный остаток СНТ сохранен");
+    } catch (requestError) {
+      setError(normalizeError(requestError, "Не удалось сохранить начальный остаток СНТ"));
+    } finally {
+      setSavingSntOpening(false);
+    }
   };
 
   useEffect(() => {
@@ -747,6 +809,38 @@ export default function AdminPage() {
           </ul>
         </Panel>
       </div>
+
+      <Panel title="Финпараметры СНТ">
+        <form className="inline-form" onSubmit={saveSntOpeningBalance}>
+          <label>
+            Начальный остаток СНТ (₽)
+            <input
+              value={openingCollectedRub}
+              onChange={(event) => setOpeningCollectedRub(event.target.value)}
+              placeholder="0"
+            />
+          </label>
+          <button className="primary-button" type="submit" disabled={savingSntOpening}>
+            {savingSntOpening ? "Сохраняем..." : "Сохранить"}
+          </button>
+        </form>
+
+        <div className="grid-3">
+          <StatCard
+            label="Начальный остаток"
+            value={sntBalance ? toRub(sntBalance.openingCollectedCents) : "..."}
+          />
+          <StatCard
+            label="Собрано оплатами"
+            value={sntBalance ? toRub(sntBalance.collectedCents) : "..."}
+          />
+          <StatCard
+            label="Баланс СНТ"
+            value={sntBalance ? toRub(sntBalance.sntBalanceCents) : "..."}
+            hint="Общая копилка"
+          />
+        </div>
+      </Panel>
 
       <Panel title="Участки">
         <div className="grid-2">

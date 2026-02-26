@@ -1,13 +1,4 @@
-import {
-  Cloud,
-  CloudFog,
-  CloudLightning,
-  CloudRain,
-  CloudSnow,
-  CloudSun,
-  Sun,
-  type LucideIcon,
-} from "lucide-react";
+import { getTimeZoneHour, resolveWeatherVisual } from "@/lib/weather-ui";
 
 export interface WeatherWidgetData {
   tenant: {
@@ -31,32 +22,6 @@ interface WeatherWidgetProps {
   locationConfigured: boolean;
   tenantFallbackSlug: string;
 }
-
-const resolveWeatherVisual = (weatherCode: number | null): { icon: LucideIcon; label: string } => {
-  if (weatherCode === 0) return { icon: Sun, label: "Ясно" };
-  if (weatherCode !== null && weatherCode >= 1 && weatherCode <= 3) {
-    return { icon: CloudSun, label: "Переменная облачность" };
-  }
-  if (weatherCode === 45 || weatherCode === 48) return { icon: CloudFog, label: "Туман" };
-  if (
-    weatherCode !== null &&
-    ((weatherCode >= 51 && weatherCode <= 57) ||
-      (weatherCode >= 61 && weatherCode <= 67) ||
-      (weatherCode >= 80 && weatherCode <= 82))
-  ) {
-    return { icon: CloudRain, label: "Дождь" };
-  }
-  if (
-    weatherCode !== null &&
-    ((weatherCode >= 71 && weatherCode <= 77) || weatherCode === 85 || weatherCode === 86)
-  ) {
-    return { icon: CloudSnow, label: "Снег" };
-  }
-  if (weatherCode !== null && weatherCode >= 95 && weatherCode <= 99) {
-    return { icon: CloudLightning, label: "Гроза" };
-  }
-  return { icon: Cloud, label: "Погода" };
-};
 
 export const WeatherWidget = ({
   loading,
@@ -95,7 +60,8 @@ export const WeatherWidget = ({
     );
   }
 
-  const { icon: WeatherIcon, label } = resolveWeatherVisual(weather.weather.weatherCode);
+  const localHour = getTimeZoneHour(weather.tenant.timeZone);
+  const { icon: WeatherIcon, label } = resolveWeatherVisual(weather.weather.weatherCode, localHour);
   const temp = Math.round(weather.weather.temperatureC);
   const fallbackSlug = tenantFallbackSlug.trim();
   const tenantNameRaw = (
