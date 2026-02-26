@@ -4,7 +4,6 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import dagger.hilt.android.AndroidEntryPoint
 import ru.snt.portal.ui.NativePortalApp
@@ -44,20 +43,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun configureSystemBars() {
-        val statusBarColor = ContextCompat.getColor(this, R.color.system_bar_background)
-        val navigationBarColor = ContextCompat.getColor(this, R.color.system_nav_background)
-
         WindowCompat.setDecorFitsSystemWindows(window, true)
-        window.statusBarColor = statusBarColor
-        window.navigationBarColor = navigationBarColor
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isStatusBarContrastEnforced = false
             window.isNavigationBarContrastEnforced = false
         }
-
-        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-        insetsController?.isAppearanceLightStatusBars = false
-        insetsController?.isAppearanceLightNavigationBars = false
     }
 }
