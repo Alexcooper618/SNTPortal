@@ -5,6 +5,10 @@ data class ApiErrorPayload(
     val message: String? = null,
 )
 
+data class OkResponse(
+    val ok: Boolean = true,
+)
+
 data class TenantItem(
     val slug: String,
     val name: String,
@@ -87,6 +91,17 @@ data class ChatReplyDto(
     val isDeleted: Boolean,
 )
 
+data class ChatMessageAttachmentDto(
+    val id: String,
+    val mediaType: String,
+    val fileUrl: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val durationSec: Int,
+    val width: Int? = null,
+    val height: Int? = null,
+)
+
 data class ChatMessageDto(
     val id: String,
     val body: String,
@@ -97,6 +112,7 @@ data class ChatMessageDto(
     val isDeleted: Boolean,
     val author: ChatMessageAuthor,
     val replyTo: ChatReplyDto? = null,
+    val attachments: List<ChatMessageAttachmentDto> = emptyList(),
 )
 
 data class ChatRoomMemberUser(
@@ -123,6 +139,8 @@ data class ChatRoomDto(
     val name: String,
     val isPrivate: Boolean,
     val updatedAt: String,
+    val photoUrl: String? = null,
+    val isMuted: Boolean = false,
     val kind: String = if (isPrivate) "DIRECT" else "TOPIC",
     val title: String = name,
     val peer: ChatRoomPeer? = null,
@@ -144,10 +162,71 @@ data class ChatMessagesResponse(
 
 data class ChatSendMessageRequest(
     val body: String,
+    val replyToMessageId: String? = null,
 )
 
 data class ChatSendMessageResponse(
     val message: ChatMessageDto,
+)
+
+data class ChatUpdateMessageRequest(
+    val body: String,
+)
+
+data class ChatMediaUploadResponse(
+    val message: ChatMessageDto,
+)
+
+data class ChatDirectRoomResponse(
+    val room: ChatRoomDto,
+)
+
+data class ChatMuteRoomRequest(
+    val muted: Boolean,
+)
+
+data class ChatMuteRoomResponse(
+    val ok: Boolean,
+    val roomId: String,
+    val isMuted: Boolean,
+)
+
+data class ChatRoomPhotoResponse(
+    val ok: Boolean,
+    val roomId: String,
+    val photoUrl: String? = null,
+)
+
+data class ChatContactDto(
+    val id: Int,
+    val name: String,
+    val role: String,
+    val avatarUrl: String? = null,
+    val ownedPlots: List<ChatContactPlotDto> = emptyList(),
+)
+
+data class ChatContactPlotDto(
+    val id: Int,
+    val number: String,
+)
+
+data class ChatContactsResponse(
+    val items: List<ChatContactDto> = emptyList(),
+)
+
+data class PushTokenRequest(
+    val token: String,
+    val platform: String = "ANDROID",
+    val deviceName: String? = null,
+)
+
+data class PushTokenDeleteRequest(
+    val token: String,
+)
+
+data class PushTokenDeleteResponse(
+    val ok: Boolean = true,
+    val removed: Int = 0,
 )
 
 data class NewsAuthor(

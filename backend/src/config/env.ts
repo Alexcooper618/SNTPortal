@@ -60,6 +60,8 @@ const tuyaOauthTokenUrl = stripTrailingSlash(
 );
 const smartPollIntervalSec = Math.max(10, toNumber(process.env.SMART_POLL_INTERVAL_SEC ?? "30", 30));
 const smartStateTtlSeconds = Math.max(120, toNumber(process.env.SMART_STATE_TTL_SECONDS ?? "300", 300));
+const pushNotificationsEnabled = toBoolean(process.env.PUSH_NOTIFICATIONS_ENABLED, false);
+const fcmServiceAccountJson = process.env.FCM_SERVICE_ACCOUNT_JSON ?? "";
 
 const tuyaClientId = process.env.TUYA_CLIENT_ID ?? "";
 const tuyaClientSecret = process.env.TUYA_CLIENT_SECRET ?? "";
@@ -124,6 +126,8 @@ export const env = {
   smartHomeTokenEncKey,
   smartHomeStateSecret,
   smartHomeUiReturnUrl,
+  pushNotificationsEnabled,
+  fcmServiceAccountJson,
 };
 
 export const isProd = env.nodeEnv === "production";

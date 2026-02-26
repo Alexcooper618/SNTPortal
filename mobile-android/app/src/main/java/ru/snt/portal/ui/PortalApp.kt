@@ -1,10 +1,12 @@
 package ru.snt.portal.ui
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import android.webkit.WebResourceRequest
@@ -21,19 +23,24 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -43,11 +50,18 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Article
+import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Badge
@@ -75,6 +89,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -105,6 +120,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import okio.BufferedSink
 import java.io.IOException
 import ru.snt.portal.core.model.NewsAttachment
@@ -145,6 +161,16 @@ fun NativePortalApp(
     loginViewModel: LoginViewModel = hiltViewModel(),
 ) {
     val session by mainViewModel.session.collectAsStateWithLifecycle()
+    val notificationsPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
+
+    LaunchedEffect(session?.user?.id) {
+        if (session != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationsPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        mainViewModel.syncPushToken(session)
+    }
 
     Surface(modifier = modifier.fillMaxSize()) {
         if (!nativeEnabled) {
@@ -308,7 +334,7 @@ private fun LoginScreen(viewModel: LoginViewModel) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun PortalScaffold(
     session: SessionState,
@@ -349,31 +375,34 @@ private fun PortalScaffold(
             )
         },
         bottomBar = {
-            NavigationBar(modifier = Modifier.navigationBarsPadding()) {
-                NavigationBarItem(
-                    selected = tab == NativeTab.Dashboard,
-                    onClick = { tab = NativeTab.Dashboard },
-                    icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
-                    label = { Text("Главная") },
-                )
-                NavigationBarItem(
-                    selected = tab == NativeTab.News,
-                    onClick = { tab = NativeTab.News },
-                    icon = { Icon(Icons.Outlined.Article, contentDescription = null) },
-                    label = { Text("Новости") },
-                )
-                NavigationBarItem(
-                    selected = tab == NativeTab.Chat,
-                    onClick = { tab = NativeTab.Chat },
-                    icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
-                    label = { Text("Чат") },
-                )
-                NavigationBarItem(
-                    selected = tab == NativeTab.Profile,
-                    onClick = { tab = NativeTab.Profile },
-                    icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
-                    label = { Text("Профиль") },
-                )
+            val imeVisible = WindowInsets.isImeVisible
+            if (!(tab == NativeTab.Chat && imeVisible)) {
+                NavigationBar(modifier = Modifier.navigationBarsPadding()) {
+                    NavigationBarItem(
+                        selected = tab == NativeTab.Dashboard,
+                        onClick = { tab = NativeTab.Dashboard },
+                        icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
+                        label = { Text("Главная") },
+                    )
+                    NavigationBarItem(
+                        selected = tab == NativeTab.News,
+                        onClick = { tab = NativeTab.News },
+                        icon = { Icon(Icons.Outlined.Article, contentDescription = null) },
+                        label = { Text("Новости") },
+                    )
+                    NavigationBarItem(
+                        selected = tab == NativeTab.Chat,
+                        onClick = { tab = NativeTab.Chat },
+                        icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
+                        label = { Text("Чат") },
+                    )
+                    NavigationBarItem(
+                        selected = tab == NativeTab.Profile,
+                        onClick = { tab = NativeTab.Profile },
+                        icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+                        label = { Text("Профиль") },
+                    )
+                }
             }
         },
     ) { padding ->
@@ -482,6 +511,7 @@ private enum class ChatRoomFilter(val label: String) {
     All("Все"),
     Direct("Личные"),
     Topic("Топики"),
+    Contacts("Контакты СНТ"),
 }
 
 @Composable
@@ -491,9 +521,62 @@ private fun ChatScreen(
     apiBaseUrl: String,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var filter by rememberSaveable { mutableStateOf(ChatRoomFilter.All) }
     var search by rememberSaveable { mutableStateOf("") }
     var openedRoomId by rememberSaveable { mutableStateOf<String?>(null) }
+    var openDirectAfterCreate by rememberSaveable { mutableStateOf(false) }
+    var actionMessageId by rememberSaveable { mutableStateOf<String?>(null) }
+    var isVoiceRecording by rememberSaveable { mutableStateOf(false) }
+    val voiceRecorder = remember { ru.snt.portal.ui.media.VoiceRecorder() }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (!granted) return@rememberLauncherForActivityResult
+        val startResult = voiceRecorder.start(context)
+        isVoiceRecording = startResult.isSuccess
+    }
+
+    val videoCaptureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data ?: return@rememberLauncherForActivityResult
+        val picked = context.resolvePickedMedia(uri) ?: return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            val part = buildMultipartPart(context, picked, "media") ?: return@launch
+            val duration = resolveVideoDurationSeconds(context, uri).coerceIn(1, 60)
+            viewModel.sendMediaMessage(
+                kind = "video-note",
+                durationSec = duration,
+                mediaPart = part,
+            )
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            runCatching {
+                videoCaptureLauncher.launch(ru.snt.portal.ui.media.VideoNoteRecorder.createCaptureIntent())
+            }
+        }
+    }
+
+    val topicPhotoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val picked = context.resolvePickedMedia(uri) ?: return@rememberLauncherForActivityResult
+        if (!picked.mimeType.startsWith("image/")) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            val part = buildMultipartPart(context, picked, "photo") ?: return@launch
+            viewModel.uploadTopicPhoto(part)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            if (isVoiceRecording) {
+                voiceRecorder.cancel()
+            }
+        }
+    }
 
     val filteredRooms = remember(state.rooms, filter, search, currentUserId) {
         val query = search.trim().lowercase()
@@ -503,6 +586,7 @@ private fun ChatScreen(
                 ChatRoomFilter.All -> true
                 ChatRoomFilter.Direct -> roomIsDirect
                 ChatRoomFilter.Topic -> !roomIsDirect
+                ChatRoomFilter.Contacts -> false
             }
             val roomTitle = resolveChatRoomTitle(room, currentUserId)
             val preview = room.lastMessage?.body.orEmpty()
@@ -513,9 +597,33 @@ private fun ChatScreen(
         }
     }
 
+    val filteredContacts = remember(state.contacts, search) {
+        val query = search.trim().lowercase()
+        state.contacts.filter { contact ->
+            if (query.isBlank()) return@filter true
+            val plots = contact.ownedPlots.joinToString(" ") { it.number }
+            contact.name.lowercase().contains(query) ||
+                contact.role.lowercase().contains(query) ||
+                plots.lowercase().contains(query)
+        }
+    }
+
     val openedRoom = remember(state.rooms, openedRoomId) {
         val roomId = openedRoomId ?: return@remember null
         state.rooms.firstOrNull { it.id == roomId }
+    }
+
+    LaunchedEffect(state.selectedRoomId, openDirectAfterCreate) {
+        if (openDirectAfterCreate && !state.selectedRoomId.isNullOrBlank()) {
+            openedRoomId = state.selectedRoomId
+            openDirectAfterCreate = false
+        }
+    }
+
+    LaunchedEffect(filter) {
+        if (filter == ChatRoomFilter.Contacts) {
+            viewModel.loadContacts(force = false)
+        }
     }
 
     if (openedRoomId == null || openedRoom == null) {
@@ -548,14 +656,27 @@ private fun ChatScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            if (state.roomLoading && state.rooms.isEmpty()) {
+            if ((filter == ChatRoomFilter.Contacts && state.contactsLoading && state.contacts.isEmpty()) ||
+                (filter != ChatRoomFilter.Contacts && state.roomLoading && state.rooms.isEmpty())
+            ) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                 }
-            } else if (filteredRooms.isEmpty()) {
+            } else if (filter == ChatRoomFilter.Contacts && filteredContacts.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (state.contacts.isEmpty()) "Контактов пока нет." else "Ничего не найдено.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else if (filter != ChatRoomFilter.Contacts && filteredRooms.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -569,21 +690,34 @@ private fun ChatScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                    .fillMaxWidth()
+                    .weight(1f),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(filteredRooms, key = { it.id }) { room ->
-                        ChatRoomRow(
-                            room = room,
-                            currentUserId = currentUserId,
-                            apiBaseUrl = apiBaseUrl,
-                            onClick = {
-                                openedRoomId = room.id
-                                viewModel.selectRoom(room.id)
-                            },
-                        )
+                    if (filter == ChatRoomFilter.Contacts) {
+                        items(filteredContacts, key = { it.id }) { contact ->
+                            ChatContactRow(
+                                contact = contact,
+                                apiBaseUrl = apiBaseUrl,
+                                onClick = {
+                                    openDirectAfterCreate = true
+                                    viewModel.openDirectChat(contact.id)
+                                },
+                            )
+                        }
+                    } else {
+                        items(filteredRooms, key = { it.id }) { room ->
+                            ChatRoomRow(
+                                room = room,
+                                currentUserId = currentUserId,
+                                apiBaseUrl = apiBaseUrl,
+                                onClick = {
+                                    openedRoomId = room.id
+                                    viewModel.selectRoom(room.id)
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -615,7 +749,7 @@ private fun ChatScreen(
             }
             ChatAvatar(
                 name = resolveChatRoomTitle(openedRoom, currentUserId),
-                avatarUrl = openedRoom.peer?.avatarUrl,
+                avatarUrl = openedRoom.photoUrl ?: openedRoom.peer?.avatarUrl,
                 apiBaseUrl = apiBaseUrl,
                 size = 40.dp,
             )
@@ -636,6 +770,36 @@ private fun ChatScreen(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            IconButton(
+                onClick = { viewModel.setMuted(!state.isMuted) },
+            ) {
+                Icon(
+                    imageVector = if (state.isMuted) Icons.Outlined.NotificationsOff else Icons.Outlined.Notifications,
+                    contentDescription = if (state.isMuted) "Включить уведомления" else "Отключить уведомления",
+                )
+            }
+            if (!openedRoom.isPrivate) {
+                IconButton(
+                    onClick = { topicPhotoPicker.launch(arrayOf("image/*")) },
+                    enabled = !state.uploadingTopicPhoto,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CameraAlt,
+                        contentDescription = "Фото топика",
+                    )
+                }
+                if (!openedRoom.photoUrl.isNullOrBlank()) {
+                    IconButton(
+                        onClick = viewModel::removeTopicPhoto,
+                        enabled = !state.uploadingTopicPhoto,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Delete,
+                            contentDescription = "Удалить фото топика",
+                        )
+                    }
+                }
             }
         }
 
@@ -660,12 +824,58 @@ private fun ChatScreen(
             items(state.messages, key = { it.id }) { message ->
                 val mine = message.author.id == currentUserId
                 MessageBubble(
-                    author = message.author.name,
-                    body = message.body,
-                    createdAt = message.createdAt,
+                    message = message,
+                    apiBaseUrl = apiBaseUrl,
                     mine = mine,
+                    onLongPress = { actionMessageId = message.id },
                 )
             }
+        }
+
+        val activeActionMessage = state.messages.firstOrNull { it.id == actionMessageId }
+        if (activeActionMessage != null) {
+            val isMine = activeActionMessage.author.id == currentUserId
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { actionMessageId = null },
+                confirmButton = {
+                    TextButton(onClick = { actionMessageId = null }) {
+                        Text("Закрыть")
+                    }
+                },
+                title = { Text("Действия") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = {
+                            viewModel.beginReply(activeActionMessage)
+                            actionMessageId = null
+                        }) {
+                            Text("Ответить")
+                        }
+                        if (isMine) {
+                            TextButton(onClick = {
+                                viewModel.beginEdit(activeActionMessage)
+                                actionMessageId = null
+                            }) {
+                                Text("Изменить")
+                            }
+                        }
+                        TextButton(onClick = {
+                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(activeActionMessage.body))
+                            actionMessageId = null
+                        }) {
+                            Text("Копировать")
+                        }
+                        if (isMine || !openedRoom.isPrivate) {
+                            TextButton(onClick = {
+                                viewModel.deleteMessage(activeActionMessage.id)
+                                actionMessageId = null
+                            }) {
+                                Text("Удалить")
+                            }
+                        }
+                    }
+                },
+            )
         }
 
         state.error?.let { errorText ->
@@ -674,6 +884,44 @@ private fun ChatScreen(
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             )
+        }
+
+        val replyTo = state.replyToMessage
+        val editingMessageId = state.editingMessageId
+        if (replyTo != null || editingMessageId != null) {
+            ElevatedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (editingMessageId != null) "Редактирование" else "Ответ",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = if (editingMessageId != null) state.draftMessage else "${replyTo?.author?.name}: ${replyTo?.body}",
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    TextButton(onClick = {
+                        if (editingMessageId != null) viewModel.cancelEdit() else viewModel.cancelReply()
+                    }) {
+                        Text("Отмена")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
         }
 
         Row(
@@ -690,23 +938,119 @@ private fun ChatScreen(
                 onValueChange = viewModel::onDraftChanged,
                 modifier = Modifier
                     .weight(1f)
-                    .height(56.dp),
+                    .height(44.dp),
                 placeholder = { Text("Сообщение") },
                 singleLine = true,
             )
+            IconButton(
+                onClick = {
+                    if (isVoiceRecording) {
+                        val result = voiceRecorder.stop()
+                        isVoiceRecording = false
+                        if (result != null) {
+                            coroutineScope.launch {
+                                val part = buildMultipartPartFromFile(result.file, "media", result.mimeType)
+                                viewModel.sendMediaMessage(
+                                    kind = "voice",
+                                    durationSec = result.durationSec.coerceIn(1, 300),
+                                    mediaPart = part,
+                                )
+                                runCatching { result.file.delete() }
+                            }
+                        }
+                    } else {
+                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                modifier = Modifier.size(40.dp),
+            ) {
+                if (state.mediaSending && !isVoiceRecording) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                } else {
+                    Icon(
+                        imageVector = if (isVoiceRecording) Icons.Outlined.Stop else Icons.Outlined.Mic,
+                        contentDescription = if (isVoiceRecording) "Остановить запись" else "Голосовое",
+                    )
+                }
+            }
+            IconButton(
+                onClick = {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(Icons.Outlined.Videocam, contentDescription = "Кружочек")
+            }
             Button(
                 onClick = viewModel::sendMessage,
-                enabled = !state.sending,
-                modifier = Modifier.height(56.dp),
+                enabled = !state.sending && state.draftMessage.isNotBlank(),
+                modifier = Modifier.height(44.dp),
             ) {
                 if (state.sending) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Отправить")
+                    Text(if (state.editingMessageId != null) "Сохранить" else "Отпр.")
                 }
             }
         }
     }
+}
+
+@Composable
+private fun ChatContactRow(
+    contact: ru.snt.portal.core.model.ChatContactDto,
+    apiBaseUrl: String,
+    onClick: () -> Unit,
+) {
+    val subtitle = buildString {
+        append(formatRole(contact.role))
+        if (contact.ownedPlots.isNotEmpty()) {
+            append(" · Участки: ")
+            append(contact.ownedPlots.joinToString(", ") { it.number })
+        }
+    }
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ChatAvatar(
+                name = contact.name,
+                avatarUrl = contact.avatarUrl,
+                apiBaseUrl = apiBaseUrl,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = contact.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+private fun formatRole(raw: String): String = when (raw.uppercase()) {
+    "CHAIRMAN" -> "Председатель"
+    "ADMIN" -> "Админ"
+    else -> "Житель"
 }
 
 @Composable
@@ -720,6 +1064,12 @@ private fun ChatRoomRow(
     val lastMessage = room.lastMessage
     val preview = if (lastMessage == null) {
         "Нет сообщений"
+    } else if (lastMessage.attachments.isNotEmpty()) {
+        when (lastMessage.attachments.first().mediaType.uppercase()) {
+            "VOICE" -> "🎤 Голосовое сообщение"
+            "VIDEO_NOTE" -> "🎥 Видеосообщение"
+            else -> "Медиа"
+        }
     } else if (lastMessage.author.id == currentUserId) {
         "Вы: ${lastMessage.body}"
     } else {
@@ -740,13 +1090,13 @@ private fun ChatRoomRow(
         ) {
             ChatAvatar(
                 name = title,
-                avatarUrl = room.peer?.avatarUrl,
+                avatarUrl = room.photoUrl ?: room.peer?.avatarUrl,
                 apiBaseUrl = apiBaseUrl,
             )
 
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = title,
+                    text = if (room.isMuted) "$title  🔕" else title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -842,13 +1192,15 @@ private fun formatChatTime(raw: String?): String {
     return normalized.takeLast(5)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
-    author: String,
-    body: String,
-    createdAt: String,
+    message: ru.snt.portal.core.model.ChatMessageDto,
+    apiBaseUrl: String,
     mine: Boolean,
+    onLongPress: () -> Unit,
 ) {
+    val context = LocalContext.current
     val bg = if (mine) MaterialTheme.colorScheme.primary.copy(alpha = 0.26f) else MaterialTheme.colorScheme.surfaceVariant
 
     Row(
@@ -858,21 +1210,68 @@ private fun MessageBubble(
         Card(
             shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = bg),
-            modifier = Modifier.fillMaxWidth(0.76f),
+            modifier = Modifier
+                .fillMaxWidth(0.76f)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = onLongPress,
+                ),
         ) {
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 if (!mine) {
                     Text(
-                        author,
+                        message.author.name,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                 }
-                Text(body, style = MaterialTheme.typography.bodyLarge)
-                Spacer(modifier = Modifier.height(4.dp))
+                message.replyTo?.let { reply ->
+                    ElevatedCard {
+                        Text(
+                            text = if (reply.isDeleted) "${reply.authorName}: (недоступно)" else "${reply.authorName}: ${reply.bodyPreview}",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+
+                if (message.attachments.isNotEmpty()) {
+                    message.attachments.forEach { attachment ->
+                        ElevatedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    openUrlInBrowser(
+                                        context,
+                                        resolveMediaUrl(apiBaseUrl, attachment.fileUrl),
+                                    )
+                                },
+                        ) {
+                            val label = when (attachment.mediaType.uppercase()) {
+                                "VOICE" -> "🎤 Голосовое"
+                                "VIDEO_NOTE" -> "🎥 Кружочек"
+                                else -> "Медиа"
+                            }
+                            Text(
+                                text = "$label · ${attachment.durationSec}с",
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+                }
+
+                if (message.body.isNotBlank()) {
+                    Text(message.body, style = MaterialTheme.typography.bodyLarge)
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
                 Text(
-                    text = createdAt.replace("T", " ").take(16),
+                    text = message.createdAt.replace("T", " ").take(16),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1620,6 +2019,14 @@ private fun resolveMediaUrl(apiBaseUrl: String, fileUrl: String): String {
     return "$origin${if (fileUrl.startsWith("/")) "" else "/"}$fileUrl"
 }
 
+private fun openUrlInBrowser(context: Context, url: String) {
+    runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
+    }
+}
+
 private fun Context.resolvePickedMedia(uri: Uri): PickedMedia? {
     val mime = contentResolver.getType(uri) ?: guessMimeType(uri)
     val fileName = queryDisplayName(uri) ?: "media_${System.currentTimeMillis()}"
@@ -1659,6 +2066,25 @@ private suspend fun buildMultipartPart(
 ): MultipartBody.Part? = withContext(Dispatchers.IO) {
     val requestBody = context.createUriRequestBody(media.uri, media.mimeType) ?: return@withContext null
     MultipartBody.Part.createFormData(fieldName, media.fileName, requestBody)
+}
+
+private fun buildMultipartPartFromFile(
+    file: java.io.File,
+    fieldName: String,
+    mimeType: String,
+): MultipartBody.Part {
+    val requestBody = file.asRequestBody(mimeType.toMediaTypeOrNull())
+    return MultipartBody.Part.createFormData(fieldName, file.name, requestBody)
+}
+
+private fun resolveVideoDurationSeconds(context: Context, uri: Uri): Int {
+    return runCatching {
+        val retriever = android.media.MediaMetadataRetriever()
+        retriever.setDataSource(context, uri)
+        val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+        retriever.release()
+        (durationMs / 1000L).toInt()
+    }.getOrDefault(1).coerceAtLeast(1)
 }
 
 private fun Context.createUriRequestBody(uri: Uri, mimeType: String): RequestBody? {

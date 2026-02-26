@@ -1,4 +1,4 @@
-import { Prisma, UserRole } from "@prisma/client";
+import { Prisma, PushDevicePlatform, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../db";
 import { logAudit } from "../lib/audit";
@@ -57,6 +57,15 @@ const parseOptionalNumber = (value: unknown, fieldName: string): number | undefi
   }
 
   return parsed;
+};
+
+const parsePushDevicePlatform = (value: unknown): PushDevicePlatform => {
+  if (typeof value !== "string") return PushDevicePlatform.ANDROID;
+  const normalized = value.trim().toUpperCase();
+  if (normalized === "ANDROID" || normalized === "IOS" || normalized === "WEB") {
+    return normalized as PushDevicePlatform;
+  }
+  throw badRequest("platform must be ANDROID, IOS or WEB");
 };
 
 const parseMemberships = (value: unknown): MembershipInput[] => {
@@ -302,6 +311,69 @@ router.get(
     res.json({
       user: sanitizeUser(user),
       unreadNotifications,
+    });
+  })
+);
+
+router.post(
+  "/me/push-token",
+  asyncHandler(async (req, res) => {
+    const token = assertString(req.body.token, "token").trim();
+    if (token.length < 20 || token.length > 4096) {
+      throw badRequest("Invalid push token format");
+    }
+
+    const platform = parsePushDevicePlatform(req.body.platform);
+    const deviceName =
+      typeof req.body.deviceName === "string" && req.body.deviceName.trim().length > 0
+        ? req.body.deviceName.trim().slice(0, 120)
+        : null;
+
+    await prisma.pushDeviceToken.upsert({
+      where: {
+        token,
+      },
+      create: {
+        tenantId: req.user!.tenantId,
+        userId: req.user!.userId,
+        token,
+        platform,
+        deviceName,
+        lastSeenAt: new Date(),
+      },
+      update: {
+        tenantId: req.user!.tenantId,
+        userId: req.user!.userId,
+        platform,
+        deviceName,
+        lastSeenAt: new Date(),
+      },
+    });
+
+    res.json({ ok: true });
+  })
+);
+
+router.delete(
+  "/me/push-token",
+  asyncHandler(async (req, res) => {
+    const tokenRaw = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+    const deleted = await prisma.pushDeviceToken.deleteMany({
+      where: tokenRaw
+        ? {
+            tenantId: req.user!.tenantId,
+            userId: req.user!.userId,
+            token: tokenRaw,
+          }
+        : {
+            tenantId: req.user!.tenantId,
+            userId: req.user!.userId,
+          },
+    });
+
+    res.json({
+      ok: true,
+      removed: deleted.count,
     });
   })
 );

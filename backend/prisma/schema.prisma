@@ -136,6 +136,17 @@ enum NotificationType {
   DEVICE
 }
 
+enum ChatMediaType {
+  VOICE
+  VIDEO_NOTE
+}
+
+enum PushDevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
 enum SmartProvider {
   TUYA
 }
@@ -196,9 +207,12 @@ model Tenant {
   forumMessages    ForumMessage[]
   chatRooms        ChatRoom[]
   chatMessages     ChatMessage[]
+  chatMessageAttachments ChatMessageAttachment[]
   chatMessageMentions ChatMessageMention[]
   chatRoomMembers  ChatRoomMember[]
   chatRoomReads    ChatRoomRead[]
+  chatRoomNotificationSettings ChatRoomNotificationSetting[]
+  pushDeviceTokens PushDeviceToken[]
   mapLayers        MapLayer[]
   mapObjects       MapObject[]
   incidents        Incident[]
@@ -245,10 +259,14 @@ model User {
   forumThreads      ForumThread[]       @relation("ForumThreadAuthor")
   forumMessages     ForumMessage[]      @relation("ForumMessageAuthor")
   chatMessages      ChatMessage[]       @relation("ChatMessageAuthor")
+  chatMessageAttachments ChatMessageAttachment[]
   deletedChatMessages ChatMessage[]     @relation("ChatMessageDeletedBy")
   chatMessageMentions ChatMessageMention[] @relation("ChatMessageMentionedUser")
   chatRoomMemberships ChatRoomMember[]
   chatRoomReads     ChatRoomRead[]
+  chatRoomNotificationSettings ChatRoomNotificationSetting[]
+  chatRoomsCreated  ChatRoom[]          @relation("ChatRoomCreator")
+  pushDeviceTokens  PushDeviceToken[]
   incidentsCreated  Incident[]          @relation("IncidentCreator")
   incidentsAssigned Incident[]          @relation("IncidentAssignee")
   meetingsCreated   Meeting[]           @relation("MeetingCreator")
@@ -727,11 +745,16 @@ model ChatRoom {
   tenant     Tenant        @relation(fields: [tenantId], references: [id])
   name       String
   isPrivate  Boolean       @default(false)
+  photoUrl   String?
+  photoUpdatedAt DateTime?
+  createdByUserId Int?
+  createdByUser User? @relation("ChatRoomCreator", fields: [createdByUserId], references: [id])
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
   messages   ChatMessage[]
   members    ChatRoomMember[]
   reads      ChatRoomRead[]
+  notificationSettings ChatRoomNotificationSetting[]
 
   @@unique([tenantId, name])
 }
@@ -774,7 +797,7 @@ model ChatMessage {
   authorId  Int
   author    User      @relation("ChatMessageAuthor", fields: [authorId], references: [id])
   replyToMessageId String?
-  replyTo   ChatMessage? @relation("ChatMessageReply", fields: [replyToMessageId], references: [id])
+  replyTo   ChatMessage? @relation("ChatMessageReply", fields: [replyToMessageId], references: [id], onDelete: SetNull)
   replies   ChatMessage[] @relation("ChatMessageReply")
   body      String
   isEdited  Boolean   @default(false)
@@ -786,9 +809,62 @@ model ChatMessage {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   mentions  ChatMessageMention[]
+  attachments ChatMessageAttachment[]
 
   @@index([tenantId, roomId, createdAt])
   @@index([replyToMessageId])
+}
+
+model ChatMessageAttachment {
+  id         String        @id @default(cuid())
+  tenantId   Int
+  tenant     Tenant        @relation(fields: [tenantId], references: [id])
+  messageId  String
+  message    ChatMessage   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  authorId   Int
+  author     User          @relation(fields: [authorId], references: [id])
+  mediaType  ChatMediaType
+  fileUrl    String
+  mimeType   String
+  sizeBytes  Int
+  durationSec Int
+  width      Int?
+  height     Int?
+  createdAt  DateTime      @default(now())
+
+  @@index([tenantId, messageId, createdAt])
+}
+
+model ChatRoomNotificationSetting {
+  id        String   @id @default(cuid())
+  tenantId  Int
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  roomId    String
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isMuted   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([roomId, userId])
+  @@index([tenantId, userId, isMuted])
+}
+
+model PushDeviceToken {
+  id          String             @id @default(cuid())
+  tenantId    Int
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      Int
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token       String             @unique
+  platform    PushDevicePlatform @default(ANDROID)
+  deviceName  String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  lastSeenAt  DateTime           @default(now())
+
+  @@index([tenantId, userId, platform])
 }
 
 model ChatMessageMention {

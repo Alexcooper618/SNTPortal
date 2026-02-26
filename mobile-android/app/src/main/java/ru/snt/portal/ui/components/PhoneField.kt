@@ -33,7 +33,7 @@ fun PhoneField(
     OutlinedTextField(
         value = visualValue,
         onValueChange = { next ->
-            onValueChange(next.text)
+            onValueChange(normalizeRuPhoneInput(next.text))
         },
         modifier = modifier.fillMaxWidth(),
         enabled = enabled,
@@ -52,40 +52,23 @@ fun PhoneField(
 }
 
 private fun formatRuPhoneForDisplay(raw: String): String {
-    val digits = raw.filter(Char::isDigit)
+    val digits = normalizeRuPhoneInput(raw).filter(Char::isDigit).drop(1).padEnd(10, '_').take(10)
+    val area = digits.take(3)
+    val first = digits.drop(3).take(3)
+    val second = digits.drop(6).take(2)
+    val third = digits.drop(8).take(2)
+    return "+7 ($area) $first-$second-$third"
+}
+
+private fun normalizeRuPhoneInput(raw: String): String {
+    val digits = raw.filter { it.isDigit() }
     if (digits.isEmpty()) return "+7"
 
     val normalized = when {
-        digits.startsWith("7") -> digits.drop(1)
-        digits.startsWith("8") -> digits.drop(1)
-        else -> digits
-    }.take(10)
+        digits.startsWith("7") -> digits
+        digits.startsWith("8") -> "7${digits.drop(1)}"
+        else -> "7$digits"
+    }.take(11)
 
-    val area = normalized.take(3)
-    val first = normalized.drop(3).take(3)
-    val second = normalized.drop(6).take(2)
-    val third = normalized.drop(8).take(2)
-
-    return buildString {
-        append("+7")
-        if (area.isNotEmpty()) {
-            append(" (")
-            append(area)
-            if (area.length == 3) {
-                append(")")
-            }
-        }
-        if (first.isNotEmpty()) {
-            append(" ")
-            append(first)
-        }
-        if (second.isNotEmpty()) {
-            append("-")
-            append(second)
-        }
-        if (third.isNotEmpty()) {
-            append("-")
-            append(third)
-        }
-    }
+    return "+$normalized"
 }

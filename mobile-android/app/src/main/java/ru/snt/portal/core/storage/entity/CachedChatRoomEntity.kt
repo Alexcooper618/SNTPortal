@@ -16,6 +16,8 @@ data class CachedChatRoomEntity(
     val title: String,
     val kind: String,
     val isPrivate: Boolean,
+    val photoUrl: String?,
+    val isMuted: Boolean,
     val peerName: String?,
     val peerAvatarUrl: String?,
     val updatedAt: String,

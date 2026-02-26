@@ -2,13 +2,19 @@ package ru.snt.portal.core.repository
 
 import androidx.room.withTransaction
 import com.google.gson.Gson
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import ru.snt.portal.core.model.ApiResult
+import ru.snt.portal.core.model.ChatContactDto
 import ru.snt.portal.core.model.ChatMessageAuthor
 import ru.snt.portal.core.model.ChatMessageDto
+import ru.snt.portal.core.model.ChatMuteRoomRequest
 import ru.snt.portal.core.model.ChatReplyDto
 import ru.snt.portal.core.model.ChatRoomDto
 import ru.snt.portal.core.model.ChatRoomPeer
 import ru.snt.portal.core.model.ChatSendMessageRequest
+import ru.snt.portal.core.model.ChatUpdateMessageRequest
 import ru.snt.portal.core.network.PortalApi
 import ru.snt.portal.core.network.toUserMessage
 import ru.snt.portal.core.session.SessionStore
@@ -31,6 +37,7 @@ class ChatRepository @Inject constructor(
 ) {
     private var roomsFetchedAtMs: Long = 0L
     private val messagesFetchedAtMsByRoom = mutableMapOf<String, Long>()
+    private val textMediaType = "text/plain".toMediaType()
 
     suspend fun loadRooms(force: Boolean = false): ApiResult<List<ChatRoomDto>> {
         val tenantSlug = sessionStore.current()?.tenantSlug
@@ -93,19 +100,178 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    suspend fun sendMessage(roomId: String, body: String): ApiResult<ChatMessageDto> {
+    suspend fun sendMessage(roomId: String, body: String, replyToMessageId: String? = null): ApiResult<ChatMessageDto> {
         val tenantSlug = sessionStore.current()?.tenantSlug
         if (tenantSlug.isNullOrBlank()) {
             return ApiResult.Error("Сессия не найдена")
         }
 
         return try {
-            val response = api.sendMessage(roomId = roomId, body = ChatSendMessageRequest(body = body))
+            val response = api.sendMessage(
+                roomId = roomId,
+                body = ChatSendMessageRequest(
+                    body = body,
+                    replyToMessageId = replyToMessageId,
+                ),
+            )
             val message = response.message
             messageDao.upsertMessages(listOf(message.toEntity(tenantSlug, roomId)))
             messagesFetchedAtMsByRoom[roomId] = System.currentTimeMillis()
             runCatching { api.markRoomRead(roomId) }
             ApiResult.Success(message)
+        } catch (error: Throwable) {
+            val (message, code) = error.toUserMessage(gson)
+            ApiResult.Error(message, code)
+        }
+    }
+
+    suspend fun editMessage(roomId: String, messageId: String, body: String): ApiResult<ChatMessageDto> {
+        val tenantSlug = sessionStore.current()?.tenantSlug
+        if (tenantSlug.isNullOrBlank()) {
+            return ApiResult.Error("Сессия не найдена")
+        }
+
+        return try {
+            val response = api.editMessage(
+                messageId = messageId,
+                body = ChatUpdateMessageRequest(body = body),
+            )
+            val message = response.message
+            messageDao.upsertMessages(listOf(message.toEntity(tenantSlug, roomId)))
+            messagesFetchedAtMsByRoom[roomId] = System.currentTimeMillis()
+            ApiResult.Success(message)
+        } catch (error: Throwable) {
+            val (message, code) = error.toUserMessage(gson)
+            ApiResult.Error(message, code)
+        }
+    }
+
+    suspend fun deleteMessage(roomId: String, messageId: String): ApiResult<Unit> {
+        val tenantSlug = sessionStore.current()?.tenantSlug
+        if (tenantSlug.isNullOrBlank()) {
+            return ApiResult.Error("Сессия не найдена")
+        }
+
+        return try {
+            api.deleteMessage(messageId = messageId)
+            messagesFetchedAtMsByRoom.remove(roomId)
+            loadMessages(roomId = roomId, force = true)
+            ApiResult.Success(Unit)
+        } catch (error: Throwable) {
+            val (message, code) = error.toUserMessage(gson)
+            ApiResult.Error(message, code)
+        }
+    }
+
+    suspend fun sendMediaMessage(
+        roomId: String,
+        kind: String,
+        durationSec: Int,
+        media: MultipartBody.Part,
+        width: Int? = null,
+        height: Int? = null,
+        caption: String? = null,
+        replyToMessageId: String? = null,
+    ): ApiResult<ChatMessageDto> {
+        val tenantSlug = sessionStore.current()?.tenantSlug
+        if (tenantSlug.isNullOrBlank()) {
+            return ApiResult.Error("Сессия не найдена")
+        }
+
+        return try {
+            val response = api.sendMediaMessage(
+                roomId = roomId,
+                kind = kind.toRequestBody(textMediaType),
+                durationSec = durationSec.toString().toRequestBody(textMediaType),
+                width = width?.toString()?.toRequestBody(textMediaType),
+                height = height?.toString()?.toRequestBody(textMediaType),
+                caption = caption?.toRequestBody(textMediaType),
+                replyToMessageId = replyToMessageId?.toRequestBody(textMediaType),
+                media = media,
+            )
+            val message = response.message
+            messageDao.upsertMessages(listOf(message.toEntity(tenantSlug, roomId)))
+            messagesFetchedAtMsByRoom[roomId] = System.currentTimeMillis()
+            runCatching { api.markRoomRead(roomId) }
+            ApiResult.Success(message)
+        } catch (error: Throwable) {
+            val (message, code) = error.toUserMessage(gson)
+            ApiResult.Error(message, code)
+        }
+    }
+
+    suspend fun loadContacts(): ApiResult<List<ChatContactDto>> {
+        if (sessionStore.current() == null) {
+            return ApiResult.Error("Сессия не найдена")
+        }
+
+        return try {
+            val response = api.getChatContacts()
+            ApiResult.Success(response.items)
+        } catch (error: Throwable) {
+            val (message, code) = error.toUserMessage(gson)
+            ApiResult.Error(message, code)
+        }
+    }
+
+    suspend fun openDirectRoom(userId: Int): ApiResult<ChatRoomDto> {
+        val tenantSlug = sessionStore.current()?.tenantSlug
+        if (tenantSlug.isNullOrBlank()) {
+            return ApiResult.Error("Сессия не найдена")
+        }
+
+        return try {
+            val response = api.openDirectRoom(userId = userId)
+            val room = response.room
+            roomDao.upsertRooms(listOf(room.toEntity(tenantSlug)))
+            ApiResult.Success(room)
+        } catch (error: Throwable) {
+            val (message, code) = error.toUserMessage(gson)
+            ApiResult.Error(message, code)
+        }
+    }
+
+    suspend fun setRoomMuted(roomId: String, muted: Boolean): ApiResult<Boolean> {
+        val tenantSlug = sessionStore.current()?.tenantSlug
+        if (tenantSlug.isNullOrBlank()) {
+            return ApiResult.Error("Сессия не найдена")
+        }
+
+        return try {
+            val response = api.setRoomMute(roomId = roomId, body = ChatMuteRoomRequest(muted))
+            val room = roomDao.getRooms(tenantSlug).firstOrNull { it.id == roomId }
+            if (room != null) {
+                roomDao.upsertRooms(listOf(room.copy(isMuted = response.isMuted)))
+            }
+            ApiResult.Success(response.isMuted)
+        } catch (error: Throwable) {
+            val (message, code) = error.toUserMessage(gson)
+            ApiResult.Error(message, code)
+        }
+    }
+
+    suspend fun uploadTopicPhoto(roomId: String, photo: MultipartBody.Part): ApiResult<String?> {
+        if (sessionStore.current() == null) {
+            return ApiResult.Error("Сессия не найдена")
+        }
+
+        return try {
+            val response = api.uploadTopicPhoto(roomId = roomId, photo = photo)
+            ApiResult.Success(response.photoUrl)
+        } catch (error: Throwable) {
+            val (message, code) = error.toUserMessage(gson)
+            ApiResult.Error(message, code)
+        }
+    }
+
+    suspend fun deleteTopicPhoto(roomId: String): ApiResult<String?> {
+        if (sessionStore.current() == null) {
+            return ApiResult.Error("Сессия не найдена")
+        }
+
+        return try {
+            val response = api.deleteTopicPhoto(roomId = roomId)
+            ApiResult.Success(response.photoUrl)
         } catch (error: Throwable) {
             val (message, code) = error.toUserMessage(gson)
             ApiResult.Error(message, code)
@@ -122,6 +288,8 @@ class ChatRepository @Inject constructor(
         name = name,
         title = title.ifBlank { name },
         kind = kind,
+        photoUrl = photoUrl,
+        isMuted = isMuted,
         isPrivate = isPrivate,
         peerName = peer?.name,
         peerAvatarUrl = peer?.avatarUrl,
@@ -146,6 +314,8 @@ class ChatRepository @Inject constructor(
         name = name,
         isPrivate = isPrivate,
         updatedAt = updatedAt,
+        photoUrl = photoUrl,
+        isMuted = isMuted,
         title = title.ifBlank { name },
         kind = kind.ifBlank { if (isPrivate) "DIRECT" else "TOPIC" },
         peer = if (peerName.isNullOrBlank()) {
@@ -183,6 +353,7 @@ class ChatRepository @Inject constructor(
                     avatarUrl = lastMessageAuthorAvatarUrl,
                 ),
                 replyTo = null,
+                attachments = emptyList(),
             )
         } else {
             null
@@ -204,6 +375,7 @@ class ChatRepository @Inject constructor(
         authorId = author.id,
         authorName = author.name,
         authorRole = author.role,
+        authorAvatarUrl = author.avatarUrl,
         replyToId = replyTo?.id,
         replyToBodyPreview = replyTo?.bodyPreview,
         replyToAuthorName = replyTo?.authorName,
@@ -222,6 +394,7 @@ class ChatRepository @Inject constructor(
             id = authorId,
             name = authorName,
             role = authorRole,
+            avatarUrl = authorAvatarUrl,
         ),
         replyTo = if (replyToId != null && replyToBodyPreview != null && replyToAuthorName != null) {
             ChatReplyDto(
@@ -233,6 +406,7 @@ class ChatRepository @Inject constructor(
         } else {
             null
         },
+        attachments = emptyList(),
     )
 
     companion object {

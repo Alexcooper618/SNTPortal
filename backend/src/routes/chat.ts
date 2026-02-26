@@ -1,17 +1,37 @@
-import { NotificationType, Prisma, UserRole } from "@prisma/client";
+import { ChatMediaType, NotificationType, Prisma, UserRole } from "@prisma/client";
 import { Router } from "express";
 import { prisma } from "../db";
 import { logAudit } from "../lib/audit";
 import { badRequest, customError, notFound, unauthorized } from "../lib/errors";
+import {
+  CHAT_VIDEO_NOTE_MAX_DURATION_SEC,
+  CHAT_VOICE_MAX_DURATION_SEC,
+  persistChatMessageMedia,
+  persistChatTopicPhoto,
+  removeUploadedFileByUrl,
+  validateChatMessageMediaFile,
+} from "../lib/media-storage";
+import { sendPushNotifications } from "../lib/push";
 import { assertString } from "../lib/validators";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { asyncHandler } from "../middlewares/async-handler";
+import { getUploadedFiles, parseChatMessageMedia, parseChatTopicPhoto } from "../middlewares/upload";
 
 const router = Router();
 router.use(requireAuth);
 
-const EDIT_WINDOW_MS = 15 * 60 * 1000;
-const DELETED_MESSAGE_PLACEHOLDER = "Сообщение удалено";
+const EDIT_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+interface ChatMessageAttachmentDto {
+  id: string;
+  mediaType: ChatMediaType;
+  fileUrl: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationSec: number;
+  width: number | null;
+  height: number | null;
+}
 
 interface ChatMessageAuthor {
   id: number;
@@ -35,6 +55,7 @@ interface ChatMessageDto {
     authorName: string;
     isDeleted: boolean;
   } | null;
+  attachments: ChatMessageAttachmentDto[];
 }
 
 const parseOptionalIsoDate = (value: unknown, field: string): Date | null => {
@@ -139,12 +160,21 @@ const toMessageDto = (message: {
       name: string;
     };
   } | null;
+  attachments?: Array<{
+    id: string;
+    mediaType: ChatMediaType;
+    fileUrl: string;
+    mimeType: string;
+    sizeBytes: number;
+    durationSec: number;
+    width: number | null;
+    height: number | null;
+  }>;
 }): ChatMessageDto => {
-  const isDeleted = Boolean(message.isDeleted);
   const replyTo = message.replyTo
     ? {
         id: message.replyTo.id,
-        bodyPreview: (message.replyTo.isDeleted ? DELETED_MESSAGE_PLACEHOLDER : message.replyTo.body).slice(0, 140),
+        bodyPreview: (message.replyTo.isDeleted ? "" : message.replyTo.body).slice(0, 140),
         authorName: message.replyTo.author.name,
         isDeleted: Boolean(message.replyTo.isDeleted),
       }
@@ -152,14 +182,24 @@ const toMessageDto = (message: {
 
   return {
     id: message.id,
-    body: isDeleted ? DELETED_MESSAGE_PLACEHOLDER : message.body,
+    body: message.body,
     createdAt: message.createdAt,
     updatedAt: message.updatedAt,
     isEdited: Boolean(message.isEdited),
     editedAt: message.editedAt ?? null,
-    isDeleted,
+    isDeleted: Boolean(message.isDeleted),
     author: message.author,
     replyTo,
+    attachments: (message.attachments ?? []).map((attachment) => ({
+      id: attachment.id,
+      mediaType: attachment.mediaType,
+      fileUrl: attachment.fileUrl,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+      durationSec: attachment.durationSec,
+      width: attachment.width ?? null,
+      height: attachment.height ?? null,
+    })),
   };
 };
 
@@ -206,6 +246,22 @@ const canAccessRoom = async (tenantId: number, userId: number, roomId: string) =
   }
 
   return room;
+};
+
+const canManageTopicRoom = (room: { isPrivate: boolean; createdByUserId: number | null }, user: { userId: number; role: UserRole }) => {
+  if (room.isPrivate) {
+    throw badRequest("Topic photo is available only for topic rooms");
+  }
+
+  if (room.createdByUserId === user.userId) {
+    return;
+  }
+
+  if (user.role === "CHAIRMAN" || user.role === "ADMIN") {
+    return;
+  }
+
+  throw customError(403, "TOPIC_PHOTO_NOT_ALLOWED", "Only topic owner or admins can change topic photo");
 };
 
 const resolveMentionedUserIds = async (
@@ -285,7 +341,7 @@ const syncMentionsAndNotifications = async (
   });
 
   if (params.room.isPrivate) {
-    return;
+    return [] as number[];
   }
 
   const mentionedUserIds = await resolveMentionedUserIds(tx, {
@@ -295,7 +351,7 @@ const syncMentionsAndNotifications = async (
   });
 
   if (mentionedUserIds.length === 0) {
-    return;
+    return [] as number[];
   }
 
   await tx.chatMessageMention.createMany({
@@ -307,20 +363,182 @@ const syncMentionsAndNotifications = async (
     skipDuplicates: true,
   });
 
-  await tx.inAppNotification.createMany({
-    data: mentionedUserIds.map((userId) => ({
-      tenantId: params.tenantId,
+  return mentionedUserIds;
+};
+
+const dispatchMessageNotifications = async (params: {
+  tenantId: number;
+  room: { id: string; name: string; isPrivate: boolean };
+  authorId: number;
+  authorName: string;
+  messageId: string;
+  messageBody: string;
+  replyToMessageId?: string | null;
+  mentionUserIds?: number[];
+}) => {
+  const baseRecipientIds = new Set<number>();
+
+  if (params.room.isPrivate) {
+    const members = await prisma.chatRoomMember.findMany({
+      where: {
+        tenantId: params.tenantId,
+        roomId: params.room.id,
+        userId: {
+          not: params.authorId,
+        },
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    for (const member of members) {
+      baseRecipientIds.add(member.userId);
+    }
+  } else {
+    const users = await prisma.user.findMany({
+      where: {
+        tenantId: params.tenantId,
+        isActive: true,
+        id: {
+          not: params.authorId,
+        },
+      },
+      select: {
+        id: true,
+      },
+      take: 5000,
+    });
+
+    const muted = await prisma.chatRoomNotificationSetting.findMany({
+      where: {
+        tenantId: params.tenantId,
+        roomId: params.room.id,
+        isMuted: true,
+      },
+      select: {
+        userId: true,
+      },
+    });
+    const mutedIds = new Set(muted.map((item) => item.userId));
+
+    for (const user of users) {
+      if (!mutedIds.has(user.id)) {
+        baseRecipientIds.add(user.id);
+      }
+    }
+  }
+
+  if (baseRecipientIds.size === 0) {
+    return;
+  }
+
+  let replyUserId: number | null = null;
+  if (params.replyToMessageId) {
+    const replyTarget = await prisma.chatMessage.findFirst({
+      where: {
+        id: params.replyToMessageId,
+        tenantId: params.tenantId,
+      },
+      select: {
+        authorId: true,
+      },
+    });
+    if (replyTarget && replyTarget.authorId !== params.authorId) {
+      replyUserId = replyTarget.authorId;
+    }
+  }
+
+  const mentionedSet = new Set((params.mentionUserIds ?? []).filter((id) => baseRecipientIds.has(id)));
+  const notifications = Array.from(baseRecipientIds).map((userId) => {
+    const isMention = mentionedSet.has(userId);
+    const isReply = replyUserId === userId;
+    const isDirect = params.room.isPrivate;
+
+    let title = "Новое сообщение";
+    let body = params.room.isPrivate
+      ? `${params.authorName}: ${params.messageBody.slice(0, 120)}`
+      : `Топик: ${params.room.name}`;
+    let reason: "MENTION" | "REPLY" | "DIRECT" | "TOPIC" = isDirect ? "DIRECT" : "TOPIC";
+
+    if (isMention) {
+      title = "Вас упомянули в чате";
+      body = params.room.isPrivate ? "Личный чат" : `Топик: ${params.room.name}`;
+      reason = "MENTION";
+    } else if (isReply) {
+      title = "Ответ на ваше сообщение";
+      body = params.room.isPrivate ? "Личный чат" : `Топик: ${params.room.name}`;
+      reason = "REPLY";
+    } else if (isDirect) {
+      title = "Новое личное сообщение";
+      reason = "DIRECT";
+    } else {
+      title = "Новое сообщение в топике";
+      reason = "TOPIC";
+    }
+
+    return {
       userId,
+      reason,
+      title,
+      body,
+    };
+  });
+
+  await prisma.inAppNotification.createMany({
+    data: notifications.map((item) => ({
+      tenantId: params.tenantId,
+      userId: item.userId,
       type: NotificationType.FORUM,
-      title: "Вас упомянули в чате",
-      body: `Комната: ${params.room.isPrivate ? "Личный чат" : params.room.name}`,
+      title: item.title,
+      body: item.body,
       payload: {
         roomId: params.room.id,
         messageId: params.messageId,
+        reason: item.reason,
       },
     })),
     skipDuplicates: false,
   });
+
+  const tokens = await prisma.pushDeviceToken.findMany({
+    where: {
+      tenantId: params.tenantId,
+      userId: {
+        in: notifications.map((item) => item.userId),
+      },
+    },
+    select: {
+      token: true,
+      userId: true,
+    },
+  });
+
+  const tokensByUser = new Map<number, string[]>();
+  for (const token of tokens) {
+    const bucket = tokensByUser.get(token.userId) ?? [];
+    bucket.push(token.token);
+    tokensByUser.set(token.userId, bucket);
+  }
+
+  for (const notification of notifications) {
+    const userTokens = tokensByUser.get(notification.userId) ?? [];
+    if (userTokens.length === 0) {
+      continue;
+    }
+
+    await sendPushNotifications({
+      tokens: userTokens,
+      title: notification.title,
+      body: notification.body,
+      data: {
+        type: "FORUM",
+        roomId: params.room.id,
+        messageId: params.messageId,
+        reason: notification.reason,
+      },
+    });
+  }
 };
 
 const getUnreadByRoom = async (tenantId: number, userId: number, roomIds: string[]) => {
@@ -362,6 +580,7 @@ const getUnreadByRoom = async (tenantId: number, userId: number, roomIds: string
     LEFT JOIN "ChatMessage" msg
       ON msg."roomId" = b."roomId"
       AND msg."tenantId" = ${tenantId}
+      AND msg."isDeleted" = false
     GROUP BY b."roomId", b."lastReadAt"
   `);
 
@@ -428,6 +647,7 @@ const getUnreadSummary = async (tenantId: number, userId: number) => {
         LEFT JOIN "ChatMessage" msg
           ON msg."roomId" = b."roomId"
           AND msg."tenantId" = ${tenantId}
+          AND msg."isDeleted" = false
         GROUP BY b."roomId"
       )
       SELECT
@@ -484,7 +704,6 @@ router.get(
       select: {
         id: true,
         name: true,
-        phone: true,
         role: true,
         avatarUrl: true,
         ownedPlots: {
@@ -522,6 +741,15 @@ router.get(
         ],
       },
       include: {
+        notificationSettings: {
+          where: {
+            userId: req.user!.userId,
+          },
+          select: {
+            isMuted: true,
+          },
+          take: 1,
+        },
         members: {
           include: {
             user: {
@@ -536,6 +764,9 @@ router.get(
         },
         messages: {
           take: 1,
+          where: {
+            isDeleted: false,
+          },
           orderBy: {
             createdAt: "desc",
           },
@@ -546,6 +777,18 @@ router.get(
                 name: true,
                 role: true,
                 avatarUrl: true,
+              },
+            },
+            attachments: {
+              select: {
+                id: true,
+                mediaType: true,
+                fileUrl: true,
+                mimeType: true,
+                sizeBytes: true,
+                durationSec: true,
+                width: true,
+                height: true,
               },
             },
           },
@@ -580,10 +823,13 @@ router.get(
           kind: presentation.kind,
           title: presentation.title,
           peer: presentation.peer,
+          photoUrl: room.photoUrl,
+          isMuted: room.notificationSettings[0]?.isMuted ?? false,
           members: mappedMembers,
           lastMessage: room.messages[0] ? toMessageDto(room.messages[0]) : null,
           unreadCount: byRoom.get(room.id)?.unreadCount ?? 0,
           lastReadAt: byRoom.get(room.id)?.lastReadAt ?? null,
+          notificationSettings: undefined,
           messages: undefined,
         };
       }),
@@ -605,6 +851,7 @@ router.post(
           tenantId: req.user!.tenantId,
           name,
           isPrivate,
+          createdByUserId: req.user!.userId,
         },
       });
 
@@ -677,6 +924,7 @@ router.post(
           tenantId: req.user!.tenantId,
           name: roomName,
           isPrivate: true,
+          createdByUserId: req.user!.userId,
         },
       });
 
@@ -745,8 +993,149 @@ router.post(
         kind: presentation.kind,
         title: presentation.title,
         peer: presentation.peer,
+        photoUrl: hydrated.photoUrl,
+        isMuted: false,
         members: mappedMembers,
       },
+    });
+  })
+);
+
+router.patch(
+  "/rooms/:roomId/notifications",
+  asyncHandler(async (req, res) => {
+    const room = await canAccessRoom(req.user!.tenantId, req.user!.userId, req.params.roomId);
+    const mutedRaw = req.body.muted;
+    const muted =
+      typeof mutedRaw === "boolean"
+        ? mutedRaw
+        : typeof mutedRaw === "string"
+          ? mutedRaw.trim().toLowerCase() === "true"
+          : null;
+
+    if (muted === null) {
+      throw badRequest("muted must be true or false");
+    }
+
+    const setting = await prisma.chatRoomNotificationSetting.upsert({
+      where: {
+        roomId_userId: {
+          roomId: room.id,
+          userId: req.user!.userId,
+        },
+      },
+      update: {
+        isMuted: muted,
+      },
+      create: {
+        tenantId: req.user!.tenantId,
+        roomId: room.id,
+        userId: req.user!.userId,
+        isMuted: muted,
+      },
+    });
+
+    res.json({
+      ok: true,
+      roomId: room.id,
+      isMuted: setting.isMuted,
+    });
+  })
+);
+
+router.post(
+  "/rooms/:roomId/photo",
+  parseChatTopicPhoto,
+  asyncHandler(async (req, res) => {
+    const room = await canAccessRoom(req.user!.tenantId, req.user!.userId, req.params.roomId);
+    canManageTopicRoom(room, req.user!);
+
+    const files = getUploadedFiles(req);
+    if (files.length !== 1) {
+      throw badRequest("Topic photo file is required");
+    }
+
+    const file = files[0];
+    const persisted = await persistChatTopicPhoto({
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      buffer: file.buffer,
+    });
+
+    try {
+      const updated = await prisma.chatRoom.update({
+        where: {
+          id: room.id,
+        },
+        data: {
+          photoUrl: persisted.fileUrl,
+          photoUpdatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          photoUrl: true,
+        },
+      });
+
+      if (room.photoUrl && room.photoUrl !== persisted.fileUrl) {
+        await removeUploadedFileByUrl(room.photoUrl);
+      }
+
+      await logAudit({
+        tenantId: req.user!.tenantId,
+        actorId: req.user!.userId,
+        action: "CHAT_TOPIC_PHOTO_UPDATED",
+        entityType: "ChatRoom",
+        entityId: room.id,
+        requestId: req.requestId,
+      });
+
+      res.json({
+        ok: true,
+        roomId: updated.id,
+        photoUrl: updated.photoUrl,
+      });
+    } catch (error) {
+      await removeUploadedFileByUrl(persisted.fileUrl);
+      throw error;
+    }
+  })
+);
+
+router.delete(
+  "/rooms/:roomId/photo",
+  asyncHandler(async (req, res) => {
+    const room = await canAccessRoom(req.user!.tenantId, req.user!.userId, req.params.roomId);
+    canManageTopicRoom(room, req.user!);
+
+    const oldPhotoUrl = room.photoUrl;
+    await prisma.chatRoom.update({
+      where: {
+        id: room.id,
+      },
+      data: {
+        photoUrl: null,
+        photoUpdatedAt: new Date(),
+      },
+    });
+
+    if (oldPhotoUrl) {
+      await removeUploadedFileByUrl(oldPhotoUrl);
+    }
+
+    await logAudit({
+      tenantId: req.user!.tenantId,
+      actorId: req.user!.userId,
+      action: "CHAT_TOPIC_PHOTO_REMOVED",
+      entityType: "ChatRoom",
+      entityId: room.id,
+      requestId: req.requestId,
+    });
+
+    res.json({
+      ok: true,
+      roomId: room.id,
+      photoUrl: null,
     });
   })
 );
@@ -763,6 +1152,7 @@ router.get(
       where: {
         tenantId: req.user!.tenantId,
         roomId: room.id,
+        isDeleted: false,
       },
       include: {
         author: {
@@ -771,6 +1161,18 @@ router.get(
             name: true,
             role: true,
             avatarUrl: true,
+          },
+        },
+        attachments: {
+          select: {
+            id: true,
+            mediaType: true,
+            fileUrl: true,
+            mimeType: true,
+            sizeBytes: true,
+            durationSec: true,
+            width: true,
+            height: true,
           },
         },
         replyTo: {
@@ -826,7 +1228,7 @@ router.post(
       }
     }
 
-    const message = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const created = await tx.chatMessage.create({
         data: {
           tenantId: req.user!.tenantId,
@@ -844,6 +1246,18 @@ router.post(
               avatarUrl: true,
             },
           },
+          attachments: {
+            select: {
+              id: true,
+              mediaType: true,
+              fileUrl: true,
+              mimeType: true,
+              sizeBytes: true,
+              durationSec: true,
+              width: true,
+              height: true,
+            },
+          },
           replyTo: {
             include: {
               author: {
@@ -856,7 +1270,7 @@ router.post(
         },
       });
 
-      await syncMentionsAndNotifications(tx, {
+      const mentionUserIds = await syncMentionsAndNotifications(tx, {
         tenantId: req.user!.tenantId,
         room,
         messageId: created.id,
@@ -880,10 +1294,220 @@ router.post(
         readAt: created.createdAt,
       });
 
-      return created;
+      return {
+        message: created,
+        mentionUserIds,
+      };
+    });
+    await dispatchMessageNotifications({
+      tenantId: req.user!.tenantId,
+      room,
+      authorId: req.user!.userId,
+      authorName: result.message.author.name,
+      messageId: result.message.id,
+      messageBody: result.message.body,
+      replyToMessageId: result.message.replyTo?.id ?? null,
+      mentionUserIds: result.mentionUserIds,
+    }).catch(() => undefined);
+
+    res.status(201).json({ message: toMessageDto(result.message) });
+  })
+);
+
+router.post(
+  "/rooms/:roomId/messages/media",
+  parseChatMessageMedia,
+  asyncHandler(async (req, res) => {
+    const room = await canAccessRoom(req.user!.tenantId, req.user!.userId, req.params.roomId);
+    const files = getUploadedFiles(req);
+    if (files.length !== 1) {
+      throw badRequest("Media file is required");
+    }
+
+    const mediaFile = files[0];
+    const kindRaw = typeof req.body.kind === "string" ? req.body.kind.trim().toLowerCase() : "";
+    const kind = kindRaw === "voice"
+      ? "voice"
+      : kindRaw === "video-note" || kindRaw === "video_note" || kindRaw === "video"
+        ? "video-note"
+        : null;
+
+    if (!kind) {
+      throw badRequest("kind must be voice or video-note");
+    }
+
+    const durationSec = Number(req.body.durationSec);
+    if (!Number.isFinite(durationSec)) {
+      throw badRequest("durationSec must be a number");
+    }
+
+    const widthRaw = req.body.width;
+    const heightRaw = req.body.height;
+    const width = widthRaw === undefined || widthRaw === null || widthRaw === "" ? null : Number(widthRaw);
+    const height = heightRaw === undefined || heightRaw === null || heightRaw === "" ? null : Number(heightRaw);
+    if (width !== null && !Number.isFinite(width)) {
+      throw badRequest("width must be a number");
+    }
+    if (height !== null && !Number.isFinite(height)) {
+      throw badRequest("height must be a number");
+    }
+
+    validateChatMessageMediaFile({
+      kind,
+      mimeType: mediaFile.mimeType,
+      size: mediaFile.size,
+      durationSec,
     });
 
-    res.status(201).json({ message: toMessageDto(message) });
+    const caption = typeof req.body.caption === "string" ? req.body.caption.trim() : "";
+    if (caption.length > 4000) {
+      throw badRequest("Message caption is too long");
+    }
+
+    const replyToMessageId = typeof req.body.replyToMessageId === "string" ? req.body.replyToMessageId.trim() : undefined;
+    if (replyToMessageId) {
+      const parent = await prisma.chatMessage.findFirst({
+        where: {
+          id: replyToMessageId,
+          tenantId: req.user!.tenantId,
+          roomId: room.id,
+          isDeleted: false,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!parent) {
+        throw customError(400, "INVALID_REPLY_TARGET", "Reply target is invalid or unavailable");
+      }
+    }
+
+    const persisted = await persistChatMessageMedia({
+      kind,
+      originalName: mediaFile.originalName,
+      mimeType: mediaFile.mimeType,
+      buffer: mediaFile.buffer,
+    });
+
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        const created = await tx.chatMessage.create({
+          data: {
+            tenantId: req.user!.tenantId,
+            roomId: room.id,
+            authorId: req.user!.userId,
+            body: caption || (kind === "voice" ? "🎤 Голосовое сообщение" : "🎥 Видеосообщение"),
+            replyToMessageId: replyToMessageId || null,
+            attachments: {
+              create: {
+                tenantId: req.user!.tenantId,
+                authorId: req.user!.userId,
+                mediaType: persisted.mediaType,
+                fileUrl: persisted.fileUrl,
+                mimeType: persisted.mimeType,
+                sizeBytes: persisted.sizeBytes,
+                durationSec: Math.round(durationSec),
+                width: width ? Math.round(width) : null,
+                height: height ? Math.round(height) : null,
+              },
+            },
+          },
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                role: true,
+                avatarUrl: true,
+              },
+            },
+            attachments: {
+              select: {
+                id: true,
+                mediaType: true,
+                fileUrl: true,
+                mimeType: true,
+                sizeBytes: true,
+                durationSec: true,
+                width: true,
+                height: true,
+              },
+            },
+            replyTo: {
+              include: {
+                author: {
+                  select: {
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        const mentionUserIds = caption
+          ? await syncMentionsAndNotifications(tx, {
+              tenantId: req.user!.tenantId,
+              room,
+              messageId: created.id,
+              messageBody: caption,
+              authorId: req.user!.userId,
+            })
+          : [];
+
+        await tx.chatRoom.update({
+          where: {
+            id: room.id,
+          },
+          data: {
+            updatedAt: new Date(),
+          },
+        });
+
+        await upsertRoomRead(tx, {
+          tenantId: req.user!.tenantId,
+          roomId: room.id,
+          userId: req.user!.userId,
+          readAt: created.createdAt,
+        });
+
+        return {
+          message: created,
+          mentionUserIds,
+        };
+      });
+
+      await logAudit({
+        tenantId: req.user!.tenantId,
+        actorId: req.user!.userId,
+        action: kind === "voice" ? "CHAT_VOICE_MESSAGE_CREATED" : "CHAT_VIDEO_NOTE_CREATED",
+        entityType: "ChatMessage",
+        entityId: result.message.id,
+        requestId: req.requestId,
+        metadata: {
+          roomId: room.id,
+          durationSec: Math.round(durationSec),
+          maxDurationSec: kind === "voice" ? CHAT_VOICE_MAX_DURATION_SEC : CHAT_VIDEO_NOTE_MAX_DURATION_SEC,
+        },
+      });
+
+      await dispatchMessageNotifications({
+        tenantId: req.user!.tenantId,
+        room,
+        authorId: req.user!.userId,
+        authorName: result.message.author.name,
+        messageId: result.message.id,
+        messageBody: result.message.body,
+        replyToMessageId: result.message.replyTo?.id ?? null,
+        mentionUserIds: result.mentionUserIds,
+      }).catch(() => undefined);
+
+      res.status(201).json({ message: toMessageDto(result.message) });
+    } catch (error) {
+      await removeUploadedFileByUrl(persisted.fileUrl);
+      throw error;
+    }
   })
 );
 
@@ -940,6 +1564,18 @@ router.patch(
               name: true,
               role: true,
               avatarUrl: true,
+            },
+          },
+          attachments: {
+            select: {
+              id: true,
+              mediaType: true,
+              fileUrl: true,
+              mimeType: true,
+              sizeBytes: true,
+              durationSec: true,
+              width: true,
+              height: true,
             },
           },
           replyTo: {
@@ -1010,49 +1646,67 @@ router.delete(
     await canAccessRoom(req.user!.tenantId, req.user!.userId, existing.roomId);
 
     const isAuthor = existing.authorId === req.user!.userId;
-    const isChairman = req.user!.role === "CHAIRMAN";
+    const isModerator = req.user!.role === "CHAIRMAN" || req.user!.role === "ADMIN";
 
-    if (!isAuthor && !isChairman) {
-      throw customError(403, "DELETE_NOT_ALLOWED", "Only author or chairman can delete this message");
+    if (!isAuthor && !isModerator) {
+      throw customError(403, "DELETE_NOT_ALLOWED", "Only author or moderators can delete this message");
     }
 
-    if (!existing.isDeleted) {
-      await prisma.$transaction(async (tx) => {
-        await tx.chatMessage.update({
-          where: {
-            id: existing.id,
-          },
-          data: {
-            isDeleted: true,
-            deletedAt: new Date(),
-            deletedByUserId: req.user!.userId,
-            isEdited: false,
-            editedAt: null,
-          },
-        });
+    if (!isAuthor && existing.room.isPrivate) {
+      throw customError(403, "DELETE_NOT_ALLOWED", "Moderators can delete foreign messages only in topic rooms");
+    }
 
-        await tx.chatMessageMention.deleteMany({
-          where: {
-            tenantId: req.user!.tenantId,
-            messageId: existing.id,
-          },
-        });
-
-        await tx.chatRoom.update({
-          where: {
-            id: existing.roomId,
-          },
-          data: {
-            updatedAt: new Date(),
-          },
-        });
+    const deletedAttachmentUrls = await prisma.$transaction(async (tx) => {
+      const attachments = await tx.chatMessageAttachment.findMany({
+        where: {
+          tenantId: req.user!.tenantId,
+          messageId: existing.id,
+        },
+        select: {
+          fileUrl: true,
+        },
       });
+
+      await tx.chatMessageMention.deleteMany({
+        where: {
+          tenantId: req.user!.tenantId,
+          messageId: existing.id,
+        },
+      });
+
+      await tx.chatMessageAttachment.deleteMany({
+        where: {
+          tenantId: req.user!.tenantId,
+          messageId: existing.id,
+        },
+      });
+
+      await tx.chatMessage.delete({
+        where: {
+          id: existing.id,
+        },
+      });
+
+      await tx.chatRoom.update({
+        where: {
+          id: existing.roomId,
+        },
+        data: {
+          updatedAt: new Date(),
+        },
+      });
+
+      return attachments.map((item) => item.fileUrl);
+    });
+
+    for (const fileUrl of deletedAttachmentUrls) {
+      await removeUploadedFileByUrl(fileUrl);
     }
 
     await logAudit({
       tenantId: req.user!.tenantId,
       actorId: req.user!.userId,
-      action: isAuthor ? "CHAT_MESSAGE_DELETED_SELF" : "CHAT_MESSAGE_DELETED_BY_CHAIRMAN",
+      action: isAuthor ? "CHAT_MESSAGE_DELETED_SELF" : "CHAT_MESSAGE_DELETED_BY_MODERATOR",
       entityType: "ChatMessage",
       entityId: existing.id,
       requestId: req.requestId,

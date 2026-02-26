@@ -24,6 +24,7 @@ data class CachedChatMessageEntity(
     val authorId: Int,
     val authorName: String,
     val authorRole: String,
+    val authorAvatarUrl: String?,
     val replyToId: String?,
     val replyToBodyPreview: String?,
     val replyToAuthorName: String?,
