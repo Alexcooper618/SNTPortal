@@ -137,6 +137,7 @@ enum NotificationType {
 }
 
 enum ChatMediaType {
+  IMAGE
   VOICE
   VIDEO_NOTE
 }

@@ -6,6 +6,7 @@ import {
   AVATAR_MEDIA_MAX_FILES,
   CHAT_MEDIA_MAX_FILES,
   CHAT_TOPIC_MEDIA_MAX_FILES,
+  isAllowedChatImageMimeType,
   NEWS_POST_MEDIA_MAX_FILES,
   NEWS_STORY_MEDIA_MAX_FILES,
   isAllowedChatTopicPhotoMimeType,
@@ -245,7 +246,9 @@ export const parseChatMessageMedia = parseMultipartRequest({
   maxFiles: CHAT_MEDIA_MAX_FILES,
   acceptedFieldName: "media",
   isAllowedMimeType: (mimeType) =>
-    isAllowedChatVoiceMimeType(mimeType) || isAllowedChatVideoNoteMimeType(mimeType),
+    isAllowedChatImageMimeType(mimeType) ||
+    isAllowedChatVoiceMimeType(mimeType) ||
+    isAllowedChatVideoNoteMimeType(mimeType),
 });
 
 export const parseChatTopicPhoto = parseMultipartRequest({

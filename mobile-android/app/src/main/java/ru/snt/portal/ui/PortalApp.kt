@@ -5,6 +5,8 @@ import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -31,12 +33,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -59,13 +59,11 @@ import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Map
-import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material.icons.outlined.Stop
-import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -94,7 +92,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -126,8 +123,9 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
-import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import okio.BufferedSink
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.text.NumberFormat
 import java.time.ZoneId
@@ -160,12 +158,16 @@ private data class StoryViewerState(
 )
 
 private const val MAX_POST_MEDIA = 10
+private const val CHAT_IMAGE_MAX_DIMENSION_PX = 1920
+private const val CHAT_IMAGE_TARGET_MAX_BYTES = 2_500_000
 
 @Composable
 fun NativePortalApp(
     nativeEnabled: Boolean,
     portalBaseUrl: String,
     apiBaseUrl: String,
+    launchChatRoomId: String? = null,
+    launchRequestId: Long = 0L,
     modifier: Modifier = Modifier,
     mainViewModel: MainViewModel = hiltViewModel(),
     loginViewModel: LoginViewModel = hiltViewModel(),
@@ -202,6 +204,8 @@ fun NativePortalApp(
             session = session!!,
             portalBaseUrl = portalBaseUrl,
             apiBaseUrl = apiBaseUrl,
+            launchChatRoomId = launchChatRoomId,
+            launchRequestId = launchRequestId,
             onLogout = mainViewModel::logout,
         )
     }
@@ -350,6 +354,8 @@ private fun PortalScaffold(
     session: SessionState,
     portalBaseUrl: String,
     apiBaseUrl: String,
+    launchChatRoomId: String?,
+    launchRequestId: Long,
     onLogout: () -> Unit,
     dashboardViewModel: DashboardViewModel = hiltViewModel(),
     chatViewModel: ChatViewModel = hiltViewModel(),
@@ -358,6 +364,16 @@ private fun PortalScaffold(
 ) {
     var tab by rememberSaveable { mutableStateOf(NativeTab.Dashboard) }
     var webPath by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingChatDeepLinkRoomId by rememberSaveable(launchRequestId) {
+        mutableStateOf(launchChatRoomId)
+    }
+
+    LaunchedEffect(launchRequestId, launchChatRoomId) {
+        if (!launchChatRoomId.isNullOrBlank()) {
+            tab = NativeTab.Chat
+            pendingChatDeepLinkRoomId = launchChatRoomId
+        }
+    }
 
     if (webPath != null) {
         WebFallbackScreen(
@@ -385,34 +401,31 @@ private fun PortalScaffold(
             )
         },
         bottomBar = {
-            val imeVisible = WindowInsets.isImeVisible
-            if (!(tab == NativeTab.Chat && imeVisible)) {
-                NavigationBar(modifier = Modifier.navigationBarsPadding()) {
-                    NavigationBarItem(
-                        selected = tab == NativeTab.Dashboard,
-                        onClick = { tab = NativeTab.Dashboard },
-                        icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
-                        label = { Text("Главная") },
-                    )
-                    NavigationBarItem(
-                        selected = tab == NativeTab.News,
-                        onClick = { tab = NativeTab.News },
-                        icon = { Icon(Icons.Outlined.Article, contentDescription = null) },
-                        label = { Text("Новости") },
-                    )
-                    NavigationBarItem(
-                        selected = tab == NativeTab.Chat,
-                        onClick = { tab = NativeTab.Chat },
-                        icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
-                        label = { Text("Чат") },
-                    )
-                    NavigationBarItem(
-                        selected = tab == NativeTab.Profile,
-                        onClick = { tab = NativeTab.Profile },
-                        icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
-                        label = { Text("Профиль") },
-                    )
-                }
+            NavigationBar(modifier = Modifier.navigationBarsPadding()) {
+                NavigationBarItem(
+                    selected = tab == NativeTab.Dashboard,
+                    onClick = { tab = NativeTab.Dashboard },
+                    icon = { Icon(Icons.Outlined.Home, contentDescription = null) },
+                    label = { Text("Главная") },
+                )
+                NavigationBarItem(
+                    selected = tab == NativeTab.News,
+                    onClick = { tab = NativeTab.News },
+                    icon = { Icon(Icons.Outlined.Article, contentDescription = null) },
+                    label = { Text("Новости") },
+                )
+                NavigationBarItem(
+                    selected = tab == NativeTab.Chat,
+                    onClick = { tab = NativeTab.Chat },
+                    icon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
+                    label = { Text("Чат") },
+                )
+                NavigationBarItem(
+                    selected = tab == NativeTab.Profile,
+                    onClick = { tab = NativeTab.Profile },
+                    icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+                    label = { Text("Профиль") },
+                )
             }
         },
     ) { padding ->
@@ -438,6 +451,11 @@ private fun PortalScaffold(
                     viewModel = chatViewModel,
                     currentUserId = session.user.id,
                     apiBaseUrl = apiBaseUrl,
+                    deepLinkRoomId = pendingChatDeepLinkRoomId,
+                    deepLinkRequestId = launchRequestId,
+                    onDeepLinkConsumed = {
+                        pendingChatDeepLinkRoomId = null
+                    },
                 )
                 NativeTab.Profile -> ProfileScreen(
                     session = session,
@@ -651,6 +669,9 @@ private fun ChatScreen(
     viewModel: ChatViewModel,
     currentUserId: Int,
     apiBaseUrl: String,
+    deepLinkRoomId: String?,
+    deepLinkRequestId: Long,
+    onDeepLinkConsumed: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -659,36 +680,22 @@ private fun ChatScreen(
     var filter by rememberSaveable { mutableStateOf(ChatRoomFilter.All) }
     var search by rememberSaveable { mutableStateOf("") }
     var openedRoomId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingDeepLinkRoomId by rememberSaveable(deepLinkRequestId) { mutableStateOf(deepLinkRoomId) }
+    var deepLinkLoadAttempted by rememberSaveable(deepLinkRequestId) { mutableStateOf(false) }
     var openDirectAfterCreate by rememberSaveable { mutableStateOf(false) }
     var actionMessageId by rememberSaveable { mutableStateOf<String?>(null) }
-    var isVoiceRecording by rememberSaveable { mutableStateOf(false) }
-    val voiceRecorder = remember { ru.snt.portal.ui.media.VoiceRecorder() }
-
-    val audioPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted) return@rememberLauncherForActivityResult
-        val startResult = voiceRecorder.start(context)
-        isVoiceRecording = startResult.isSuccess
-    }
-
-    val videoCaptureLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.data ?: return@rememberLauncherForActivityResult
+    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
         val picked = context.resolvePickedMedia(uri) ?: return@rememberLauncherForActivityResult
+        if (!picked.mimeType.startsWith("image/")) return@rememberLauncherForActivityResult
         coroutineScope.launch {
-            val part = buildMultipartPart(context, picked, "media") ?: return@launch
-            val duration = resolveVideoDurationSeconds(context, uri).coerceIn(1, 60)
+            val part = buildChatImageMultipartPart(context, picked, "media") ?: return@launch
             viewModel.sendMediaMessage(
-                kind = "video-note",
-                durationSec = duration,
+                kind = "image",
+                durationSec = 0,
                 mediaPart = part,
+                retryLabel = "Фото",
             )
-        }
-    }
-
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            runCatching {
-                videoCaptureLauncher.launch(ru.snt.portal.ui.media.VideoNoteRecorder.createCaptureIntent())
-            }
         }
     }
 
@@ -699,14 +706,6 @@ private fun ChatScreen(
         coroutineScope.launch {
             val part = buildMultipartPart(context, picked, "photo") ?: return@launch
             viewModel.uploadTopicPhoto(part)
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            if (isVoiceRecording) {
-                voiceRecorder.cancel()
-            }
         }
     }
 
@@ -755,6 +754,30 @@ private fun ChatScreen(
     LaunchedEffect(filter) {
         if (filter == ChatRoomFilter.Contacts) {
             viewModel.loadContacts(force = false)
+        }
+    }
+
+    LaunchedEffect(deepLinkRequestId, deepLinkRoomId) {
+        pendingDeepLinkRoomId = deepLinkRoomId
+        deepLinkLoadAttempted = false
+    }
+
+    LaunchedEffect(pendingDeepLinkRoomId, state.rooms, state.roomLoading, deepLinkLoadAttempted) {
+        val roomId = pendingDeepLinkRoomId ?: return@LaunchedEffect
+        val room = state.rooms.firstOrNull { it.id == roomId }
+        if (room != null) {
+            if (openedRoomId != roomId) {
+                openedRoomId = roomId
+                viewModel.selectRoom(roomId)
+            }
+            pendingDeepLinkRoomId = null
+            onDeepLinkConsumed()
+            return@LaunchedEffect
+        }
+
+        if (!state.roomLoading && !deepLinkLoadAttempted) {
+            deepLinkLoadAttempted = true
+            viewModel.loadRooms(force = true)
         }
     }
 
@@ -1056,67 +1079,68 @@ private fun ChatScreen(
             Spacer(modifier = Modifier.height(6.dp))
         }
 
+        if (state.mediaRetryAvailable) {
+            ElevatedCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Не удалось отправить ${state.mediaRetryLabel.lowercase()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = viewModel::retryPendingMedia) {
+                        Text("Повторить")
+                    }
+                    TextButton(onClick = viewModel::clearPendingMediaRetry) {
+                        Text("Убрать")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
                 .imePadding()
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
-                value = state.draftMessage,
-                onValueChange = viewModel::onDraftChanged,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp),
-                placeholder = { Text("Сообщение") },
-                singleLine = true,
-            )
             IconButton(
-                onClick = {
-                    if (isVoiceRecording) {
-                        val result = voiceRecorder.stop()
-                        isVoiceRecording = false
-                        if (result != null) {
-                            coroutineScope.launch {
-                                val part = buildMultipartPartFromFile(result.file, "media", result.mimeType)
-                                viewModel.sendMediaMessage(
-                                    kind = "voice",
-                                    durationSec = result.durationSec.coerceIn(1, 300),
-                                    mediaPart = part,
-                                )
-                                runCatching { result.file.delete() }
-                            }
-                        }
-                    } else {
-                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                },
+                onClick = { imagePickerLauncher.launch(arrayOf("image/*")) },
                 modifier = Modifier.size(40.dp),
+                enabled = !state.mediaSending,
             ) {
-                if (state.mediaSending && !isVoiceRecording) {
+                if (state.mediaSending) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 } else {
                     Icon(
-                        imageVector = if (isVoiceRecording) Icons.Outlined.Stop else Icons.Outlined.Mic,
-                        contentDescription = if (isVoiceRecording) "Остановить запись" else "Голосовое",
+                        imageVector = Icons.Outlined.AttachFile,
+                        contentDescription = "Прикрепить фото",
                     )
                 }
             }
-            IconButton(
-                onClick = {
-                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                },
-                modifier = Modifier.size(40.dp),
-            ) {
-                Icon(Icons.Outlined.Videocam, contentDescription = "Кружочек")
-            }
+            OutlinedTextField(
+                value = state.draftMessage,
+                onValueChange = viewModel::onDraftChanged,
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Сообщение") },
+                singleLine = true,
+            )
             Button(
                 onClick = viewModel::sendMessage,
                 enabled = !state.sending && state.draftMessage.isNotBlank(),
-                modifier = Modifier.height(44.dp),
+                modifier = Modifier.height(56.dp),
             ) {
                 if (state.sending) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
@@ -1198,6 +1222,7 @@ private fun ChatRoomRow(
         "Нет сообщений"
     } else if (lastMessage.attachments.isNotEmpty()) {
         when (lastMessage.attachments.first().mediaType.uppercase()) {
+            "IMAGE" -> "🖼 Фото"
             "VOICE" -> "🎤 Голосовое сообщение"
             "VIDEO_NOTE" -> "🎥 Видеосообщение"
             else -> "Медиа"
@@ -1373,26 +1398,40 @@ private fun MessageBubble(
 
                 if (message.attachments.isNotEmpty()) {
                     message.attachments.forEach { attachment ->
-                        ElevatedCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    openUrlInBrowser(
-                                        context,
-                                        resolveMediaUrl(apiBaseUrl, attachment.fileUrl),
-                                    )
-                                },
-                        ) {
-                            val label = when (attachment.mediaType.uppercase()) {
-                                "VOICE" -> "🎤 Голосовое"
-                                "VIDEO_NOTE" -> "🎥 Кружочек"
-                                else -> "Медиа"
+                        val mediaUrl = resolveMediaUrl(apiBaseUrl, attachment.fileUrl)
+                        if (attachment.mediaType.equals("IMAGE", ignoreCase = true)) {
+                            ElevatedCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { openUrlInBrowser(context, mediaUrl) },
+                            ) {
+                                AsyncImage(
+                                    model = mediaUrl,
+                                    contentDescription = "Фото",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp),
+                                    contentScale = ContentScale.Crop,
+                                )
                             }
-                            Text(
-                                text = "$label · ${attachment.durationSec}с",
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
+                        } else {
+                            ElevatedCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { openUrlInBrowser(context, mediaUrl) },
+                            ) {
+                                val label = when (attachment.mediaType.uppercase()) {
+                                    "VOICE" -> "🎤 Голосовое"
+                                    "VIDEO_NOTE" -> "🎥 Кружочек"
+                                    else -> "Медиа"
+                                }
+                                val durationLabel = if (attachment.durationSec > 0) " · ${attachment.durationSec}с" else ""
+                                Text(
+                                    text = "$label$durationLabel",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                     }
@@ -2191,6 +2230,24 @@ private suspend fun buildMultipartParts(
     media.take(MAX_POST_MEDIA).mapNotNull { picked -> buildMultipartPart(context, picked, fieldName) }
 }
 
+private suspend fun buildChatImageMultipartPart(
+    context: Context,
+    media: PickedMedia,
+    fieldName: String,
+): MultipartBody.Part? = withContext(Dispatchers.IO) {
+    if (!media.mimeType.startsWith("image/")) {
+        return@withContext buildMultipartPart(context, media, fieldName)
+    }
+
+    val compressed = context.compressImageForChatUpload(media.uri)
+    if (compressed == null) {
+        return@withContext buildMultipartPart(context, media, fieldName)
+    }
+
+    val requestBody = compressed.bytes.toRequestBody("image/jpeg".toMediaTypeOrNull())
+    MultipartBody.Part.createFormData(fieldName, compressed.fileName, requestBody)
+}
+
 private suspend fun buildMultipartPart(
     context: Context,
     media: PickedMedia,
@@ -2200,23 +2257,83 @@ private suspend fun buildMultipartPart(
     MultipartBody.Part.createFormData(fieldName, media.fileName, requestBody)
 }
 
-private fun buildMultipartPartFromFile(
-    file: java.io.File,
-    fieldName: String,
-    mimeType: String,
-): MultipartBody.Part {
-    val requestBody = file.asRequestBody(mimeType.toMediaTypeOrNull())
-    return MultipartBody.Part.createFormData(fieldName, file.name, requestBody)
+private data class CompressedImagePayload(
+    val fileName: String,
+    val bytes: ByteArray,
+)
+
+private fun Context.compressImageForChatUpload(uri: Uri): CompressedImagePayload? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, bounds)
+    } ?: return null
+
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+    val sampleSize = calculateImageSampleSize(
+        width = bounds.outWidth,
+        height = bounds.outHeight,
+        reqWidth = CHAT_IMAGE_MAX_DIMENSION_PX,
+        reqHeight = CHAT_IMAGE_MAX_DIMENSION_PX,
+    )
+
+    val decodeOptions = BitmapFactory.Options().apply {
+        inSampleSize = sampleSize
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+
+    val decodedBitmap = contentResolver.openInputStream(uri)?.use { input ->
+        BitmapFactory.decodeStream(input, null, decodeOptions)
+    } ?: return null
+
+    val scaledBitmap = decodedBitmap.scaleDownIfNeeded(CHAT_IMAGE_MAX_DIMENSION_PX)
+    if (scaledBitmap !== decodedBitmap) {
+        decodedBitmap.recycle()
+    }
+
+    val output = ByteArrayOutputStream()
+    var quality = 88
+    do {
+        output.reset()
+        scaledBitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)
+        quality -= 8
+    } while (output.size() > CHAT_IMAGE_TARGET_MAX_BYTES && quality >= 60)
+
+    scaledBitmap.recycle()
+
+    val bytes = output.toByteArray()
+    if (bytes.isEmpty()) return null
+
+    return CompressedImagePayload(
+        fileName = "chat_${System.currentTimeMillis()}.jpg",
+        bytes = bytes,
+    )
 }
 
-private fun resolveVideoDurationSeconds(context: Context, uri: Uri): Int {
-    return runCatching {
-        val retriever = android.media.MediaMetadataRetriever()
-        retriever.setDataSource(context, uri)
-        val durationMs = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-        retriever.release()
-        (durationMs / 1000L).toInt()
-    }.getOrDefault(1).coerceAtLeast(1)
+private fun Bitmap.scaleDownIfNeeded(maxDimension: Int): Bitmap {
+    val sourceWidth = width
+    val sourceHeight = height
+    val maxSourceDimension = maxOf(sourceWidth, sourceHeight)
+    if (maxSourceDimension <= maxDimension) return this
+
+    val scale = maxDimension.toFloat() / maxSourceDimension.toFloat()
+    val targetWidth = (sourceWidth * scale).toInt().coerceAtLeast(1)
+    val targetHeight = (sourceHeight * scale).toInt().coerceAtLeast(1)
+    return Bitmap.createScaledBitmap(this, targetWidth, targetHeight, true)
+}
+
+private fun calculateImageSampleSize(width: Int, height: Int, reqWidth: Int, reqHeight: Int): Int {
+    var sampleSize = 1
+    if (height > reqHeight || width > reqWidth) {
+        var halfHeight = height / 2
+        var halfWidth = width / 2
+        while (halfHeight / sampleSize >= reqHeight && halfWidth / sampleSize >= reqWidth) {
+            sampleSize *= 2
+            halfHeight = height / 2
+            halfWidth = width / 2
+        }
+    }
+    return sampleSize.coerceAtLeast(1)
 }
 
 private fun Context.createUriRequestBody(uri: Uri, mimeType: String): RequestBody? {

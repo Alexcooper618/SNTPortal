@@ -1326,20 +1326,23 @@ router.post(
 
     const mediaFile = files[0];
     const kindRaw = typeof req.body.kind === "string" ? req.body.kind.trim().toLowerCase() : "";
-    const kind = kindRaw === "voice"
-      ? "voice"
-      : kindRaw === "video-note" || kindRaw === "video_note" || kindRaw === "video"
-        ? "video-note"
-        : null;
+    const kind = kindRaw === "image" || kindRaw === "photo"
+      ? "image"
+      : kindRaw === "voice"
+        ? "voice"
+        : kindRaw === "video-note" || kindRaw === "video_note" || kindRaw === "video"
+          ? "video-note"
+          : null;
 
     if (!kind) {
-      throw badRequest("kind must be voice or video-note");
+      throw badRequest("kind must be image, voice or video-note");
     }
 
-    const durationSec = Number(req.body.durationSec);
-    if (!Number.isFinite(durationSec)) {
+    const parsedDurationSec = Number(req.body.durationSec);
+    if (!Number.isFinite(parsedDurationSec) && kind !== "image") {
       throw badRequest("durationSec must be a number");
     }
+    const durationSec = kind === "image" ? 0 : parsedDurationSec;
 
     const widthRaw = req.body.width;
     const heightRaw = req.body.height;
@@ -1397,7 +1400,13 @@ router.post(
             tenantId: req.user!.tenantId,
             roomId: room.id,
             authorId: req.user!.userId,
-            body: caption || (kind === "voice" ? "🎤 Голосовое сообщение" : "🎥 Видеосообщение"),
+            body:
+              caption ||
+              (kind === "image"
+                ? "🖼 Фото"
+                : kind === "voice"
+                  ? "🎤 Голосовое сообщение"
+                  : "🎥 Видеосообщение"),
             replyToMessageId: replyToMessageId || null,
             attachments: {
               create: {
@@ -1481,14 +1490,24 @@ router.post(
       await logAudit({
         tenantId: req.user!.tenantId,
         actorId: req.user!.userId,
-        action: kind === "voice" ? "CHAT_VOICE_MESSAGE_CREATED" : "CHAT_VIDEO_NOTE_CREATED",
+        action:
+          kind === "image"
+            ? "CHAT_IMAGE_MESSAGE_CREATED"
+            : kind === "voice"
+              ? "CHAT_VOICE_MESSAGE_CREATED"
+              : "CHAT_VIDEO_NOTE_CREATED",
         entityType: "ChatMessage",
         entityId: result.message.id,
         requestId: req.requestId,
         metadata: {
           roomId: room.id,
           durationSec: Math.round(durationSec),
-          maxDurationSec: kind === "voice" ? CHAT_VOICE_MAX_DURATION_SEC : CHAT_VIDEO_NOTE_MAX_DURATION_SEC,
+          maxDurationSec:
+            kind === "voice"
+              ? CHAT_VOICE_MAX_DURATION_SEC
+              : kind === "video-note"
+                ? CHAT_VIDEO_NOTE_MAX_DURATION_SEC
+                : null,
         },
       });
 

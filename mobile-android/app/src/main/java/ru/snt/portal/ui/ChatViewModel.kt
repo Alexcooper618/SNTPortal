@@ -27,12 +27,26 @@ data class ChatUiState(
     val sending: Boolean = false,
     val mutatingMessage: Boolean = false,
     val mediaSending: Boolean = false,
+    val mediaRetryAvailable: Boolean = false,
+    val mediaRetryLabel: String = "",
     val uploadingTopicPhoto: Boolean = false,
     val isMuted: Boolean = false,
     val draftMessage: String = "",
     val replyToMessage: ChatMessageDto? = null,
     val editingMessageId: String? = null,
     val error: String? = null,
+)
+
+private data class PendingMediaRetry(
+    val roomId: String,
+    val kind: String,
+    val durationSec: Int,
+    val mediaPart: MultipartBody.Part,
+    val width: Int?,
+    val height: Int?,
+    val caption: String?,
+    val replyToMessageId: String?,
+    val label: String,
 )
 
 @HiltViewModel
@@ -45,6 +59,7 @@ class ChatViewModel @Inject constructor(
 
     private val messagesCacheByRoom = mutableMapOf<String, List<ChatMessageDto>>()
     private var activeMessagesRequestSeq: Long = 0L
+    private var pendingMediaRetry: PendingMediaRetry? = null
 
     init {
         loadRooms(force = false)
@@ -145,12 +160,15 @@ class ChatViewModel @Inject constructor(
                 replyToMessage = null,
                 editingMessageId = null,
                 draftMessage = "",
+                mediaRetryAvailable = false,
+                mediaRetryLabel = "",
                 rooms = it.rooms.map { currentRoom ->
                     if (currentRoom.id == roomId) currentRoom.copy(unreadCount = 0) else currentRoom
                 },
                 error = null,
             )
         }
+        pendingMediaRetry = null
 
         viewModelScope.launch {
             chatRepository.markRoomRead(roomId)
@@ -388,36 +406,71 @@ class ChatViewModel @Inject constructor(
         kind: String,
         durationSec: Int,
         mediaPart: MultipartBody.Part,
+        retryLabel: String = "Медиа",
         width: Int? = null,
         height: Int? = null,
     ) {
         val state = _uiState.value
         val roomId = state.selectedRoomId ?: return
+        val payload = PendingMediaRetry(
+            roomId = roomId,
+            kind = kind,
+            durationSec = durationSec,
+            mediaPart = mediaPart,
+            width = width,
+            height = height,
+            caption = state.draftMessage.trim().ifBlank { null },
+            replyToMessageId = state.replyToMessage?.id,
+            label = retryLabel,
+        )
+        sendMediaPayload(payload)
+    }
+
+    fun retryPendingMedia() {
+        val payload = pendingMediaRetry ?: return
+        sendMediaPayload(payload)
+    }
+
+    fun clearPendingMediaRetry() {
+        pendingMediaRetry = null
+        _uiState.update {
+            it.copy(
+                mediaRetryAvailable = false,
+                mediaRetryLabel = "",
+            )
+        }
+    }
+
+    private fun sendMediaPayload(payload: PendingMediaRetry) {
         viewModelScope.launch {
             _uiState.update { it.copy(mediaSending = true, error = null) }
             when (
                 val result = chatRepository.sendMediaMessage(
-                    roomId = roomId,
-                    kind = kind,
-                    durationSec = durationSec,
-                    media = mediaPart,
-                    width = width,
-                    height = height,
-                    caption = state.draftMessage.trim().ifBlank { null },
-                    replyToMessageId = state.replyToMessage?.id,
+                    roomId = payload.roomId,
+                    kind = payload.kind,
+                    durationSec = payload.durationSec,
+                    media = payload.mediaPart,
+                    width = payload.width,
+                    height = payload.height,
+                    caption = payload.caption,
+                    replyToMessageId = payload.replyToMessageId,
                 )
             ) {
                 is ApiResult.Success -> {
-                    val updatedMessages = _uiState.value.messages + result.data
-                    messagesCacheByRoom[roomId] = updatedMessages
+                    pendingMediaRetry = null
+                    val updatedRoomMessages = messagesCacheByRoom[payload.roomId].orEmpty() + result.data
+                    messagesCacheByRoom[payload.roomId] = updatedRoomMessages
                     _uiState.update {
+                        val shouldUpdateVisibleRoom = it.selectedRoomId == payload.roomId
                         it.copy(
                             mediaSending = false,
-                            draftMessage = "",
-                            replyToMessage = null,
-                            messages = updatedMessages,
+                            mediaRetryAvailable = false,
+                            mediaRetryLabel = "",
+                            draftMessage = if (shouldUpdateVisibleRoom) "" else it.draftMessage,
+                            replyToMessage = if (shouldUpdateVisibleRoom) null else it.replyToMessage,
+                            messages = if (shouldUpdateVisibleRoom) updatedRoomMessages else it.messages,
                             rooms = it.rooms.map { room ->
-                                if (room.id == roomId) room.copy(unreadCount = 0, lastMessage = result.data)
+                                if (room.id == payload.roomId) room.copy(unreadCount = 0, lastMessage = result.data)
                                 else room
                             },
                         )
@@ -425,10 +478,17 @@ class ChatViewModel @Inject constructor(
                 }
 
                 is ApiResult.Error -> {
-                    _uiState.update { it.copy(mediaSending = false, error = result.message) }
+                    pendingMediaRetry = payload
+                    _uiState.update {
+                        it.copy(
+                            mediaSending = false,
+                            mediaRetryAvailable = true,
+                            mediaRetryLabel = payload.label,
+                            error = result.message,
+                        )
+                    }
                 }
             }
         }
     }
 }
-

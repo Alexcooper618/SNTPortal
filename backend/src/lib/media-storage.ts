@@ -14,6 +14,7 @@ export const AVATAR_MEDIA_MAX_FILES = 1;
 export const AVATAR_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 export const CHAT_MEDIA_MAX_FILES = 1;
 export const CHAT_TOPIC_MEDIA_MAX_FILES = 1;
+export const CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const CHAT_VOICE_MAX_BYTES = 10 * 1024 * 1024;
 export const CHAT_VIDEO_NOTE_MAX_BYTES = 25 * 1024 * 1024;
 export const CHAT_TOPIC_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
@@ -34,7 +35,7 @@ interface PersistMediaParams {
 }
 
 interface PersistChatMediaParams {
-  kind: "voice" | "video-note";
+  kind: "image" | "voice" | "video-note";
   originalName: string;
   mimeType: string;
   buffer: Buffer;
@@ -111,6 +112,7 @@ export const getNewsStoriesMediaDir = () => path.join(getUploadsRootDir(), "news
 export const getAvatarsMediaDir = () => path.join(getUploadsRootDir(), "avatars");
 export const getChatVoiceMediaDir = () => path.join(getUploadsRootDir(), "chat", "voice");
 export const getChatVideoNotesMediaDir = () => path.join(getUploadsRootDir(), "chat", "video-notes");
+export const getChatImagesMediaDir = () => path.join(getUploadsRootDir(), "chat", "images");
 export const getChatTopicsMediaDir = () => path.join(getUploadsRootDir(), "chat", "topics");
 
 export const ensureMediaStorageReady = () => {
@@ -120,6 +122,7 @@ export const ensureMediaStorageReady = () => {
   ensureDirSync(getNewsPostsMediaDir());
   ensureDirSync(getNewsStoriesMediaDir());
   ensureDirSync(getAvatarsMediaDir());
+  ensureDirSync(getChatImagesMediaDir());
   ensureDirSync(getChatVoiceMediaDir());
   ensureDirSync(getChatVideoNotesMediaDir());
   ensureDirSync(getChatTopicsMediaDir());
@@ -130,6 +133,7 @@ export const isAllowedNewsMimeType = (mimeType: string) =>
 
 export const isAllowedAvatarMimeType = (mimeType: string) => IMAGE_MIME_TYPES.has(mimeType);
 export const isAllowedChatTopicPhotoMimeType = (mimeType: string) => IMAGE_MIME_TYPES.has(mimeType);
+export const isAllowedChatImageMimeType = (mimeType: string) => IMAGE_MIME_TYPES.has(mimeType);
 export const isAllowedChatVoiceMimeType = (mimeType: string) => AUDIO_MIME_TYPES.has(mimeType);
 export const isAllowedChatVideoNoteMimeType = (mimeType: string) => VIDEO_MIME_TYPES.has(mimeType);
 
@@ -181,6 +185,7 @@ export const generateUploadFileName = (originalName: string, mimeType: string) =
 export const buildNewsPostFileUrl = (fileName: string) => `/uploads/news/posts/${fileName}`;
 export const buildNewsStoryFileUrl = (fileName: string) => `/uploads/news/stories/${fileName}`;
 export const buildAvatarFileUrl = (fileName: string) => `/uploads/avatars/${fileName}`;
+export const buildChatImageFileUrl = (fileName: string) => `/uploads/chat/images/${fileName}`;
 export const buildChatVoiceFileUrl = (fileName: string) => `/uploads/chat/voice/${fileName}`;
 export const buildChatVideoNoteFileUrl = (fileName: string) => `/uploads/chat/video-notes/${fileName}`;
 export const buildChatTopicPhotoFileUrl = (fileName: string) => `/uploads/chat/topics/${fileName}`;
@@ -233,11 +238,21 @@ export const persistAvatarMedia = async ({
 };
 
 export const validateChatMessageMediaFile = (params: {
-  kind: "voice" | "video-note";
+  kind: "image" | "voice" | "video-note";
   mimeType: string;
   size: number;
   durationSec: number;
 }) => {
+  if (params.kind === "image") {
+    if (!isAllowedChatImageMimeType(params.mimeType)) {
+      throw badRequest("Unsupported image media type");
+    }
+    if (params.size > CHAT_IMAGE_MAX_BYTES) {
+      throw badRequest("Image exceeds 10 MB limit");
+    }
+    return;
+  }
+
   if (params.kind === "voice") {
     if (!isAllowedChatVoiceMimeType(params.mimeType)) {
       throw badRequest("Unsupported voice media type");
@@ -278,16 +293,29 @@ export const persistChatMessageMedia = async ({
   buffer,
 }: PersistChatMediaParams) => {
   const fileName = generateUploadFileName(originalName, mimeType);
-  const absolutePath = path.join(
-    kind === "voice" ? getChatVoiceMediaDir() : getChatVideoNotesMediaDir(),
-    fileName
-  );
+  const directory =
+    kind === "image"
+      ? getChatImagesMediaDir()
+      : kind === "voice"
+        ? getChatVoiceMediaDir()
+        : getChatVideoNotesMediaDir();
+  const absolutePath = path.join(directory, fileName);
   await fsAsync.writeFile(absolutePath, buffer);
 
   return {
     fileName: originalName,
-    fileUrl: kind === "voice" ? buildChatVoiceFileUrl(fileName) : buildChatVideoNoteFileUrl(fileName),
-    mediaType: kind === "voice" ? ChatMediaType.VOICE : ChatMediaType.VIDEO_NOTE,
+    fileUrl:
+      kind === "image"
+        ? buildChatImageFileUrl(fileName)
+        : kind === "voice"
+          ? buildChatVoiceFileUrl(fileName)
+          : buildChatVideoNoteFileUrl(fileName),
+    mediaType:
+      kind === "image"
+        ? ChatMediaType.IMAGE
+        : kind === "voice"
+          ? ChatMediaType.VOICE
+          : ChatMediaType.VIDEO_NOTE,
     mimeType,
     sizeBytes: buffer.byteLength,
   };
