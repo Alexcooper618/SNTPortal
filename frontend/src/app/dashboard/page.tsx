@@ -366,7 +366,9 @@ export default function DashboardPage() {
       </section>
 
       <div className="grid-4">
-        <StatCard label="Баланс СНТ" value={sntBalanceValue} hint="Общая копилка СНТ" />
+        <Link href="/payments/snt-balance" className="stat-card-link">
+          <StatCard label="Баланс СНТ" value={sntBalanceValue} hint="Нажмите для расшифровки расходов" />
+        </Link>
         <StatCard label="Мои платежи" value={myPaymentsValue} hint={myPaymentsHint} variant={myPaymentsVariant} />
         <StatCard label="Открытые обращения" value={incidentValue} hint="OPEN и IN_PROGRESS" />
         <StatCard label="Открытые голосования" value={votesValue} hint="Требуют участия" />

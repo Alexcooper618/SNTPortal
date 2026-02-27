@@ -18,6 +18,8 @@ export const CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const CHAT_VOICE_MAX_BYTES = 10 * 1024 * 1024;
 export const CHAT_VIDEO_NOTE_MAX_BYTES = 25 * 1024 * 1024;
 export const CHAT_TOPIC_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const SNT_EXPENSE_ATTACHMENT_MAX_FILES = 1;
+export const SNT_EXPENSE_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
 export const CHAT_VOICE_MAX_DURATION_SEC = 300;
 export const CHAT_VIDEO_NOTE_MAX_DURATION_SEC = 60;
 export const STORY_TTL_HOURS = 24;
@@ -62,6 +64,15 @@ const AUDIO_MIME_TYPES = new Set([
   "audio/ogg",
 ]);
 
+const SNT_EXPENSE_DOCUMENT_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+]);
+
 const MIME_EXTENSION_MAP: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",
@@ -75,6 +86,12 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   "audio/m4a": ".m4a",
   "audio/mp4": ".m4a",
   "audio/ogg": ".ogg",
+  "application/pdf": ".pdf",
+  "application/msword": ".doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
+  "application/vnd.ms-excel": ".xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx",
+  "text/plain": ".txt",
 };
 
 const normalizeExtension = (rawExtension: string): string => {
@@ -114,11 +131,13 @@ export const getChatVoiceMediaDir = () => path.join(getUploadsRootDir(), "chat",
 export const getChatVideoNotesMediaDir = () => path.join(getUploadsRootDir(), "chat", "video-notes");
 export const getChatImagesMediaDir = () => path.join(getUploadsRootDir(), "chat", "images");
 export const getChatTopicsMediaDir = () => path.join(getUploadsRootDir(), "chat", "topics");
+export const getSntExpenseMediaDir = () => path.join(getUploadsRootDir(), "billing", "expenses");
 
 export const ensureMediaStorageReady = () => {
   ensureDirSync(getUploadsRootDir());
   ensureDirSync(path.join(getUploadsRootDir(), "news"));
   ensureDirSync(path.join(getUploadsRootDir(), "chat"));
+  ensureDirSync(path.join(getUploadsRootDir(), "billing"));
   ensureDirSync(getNewsPostsMediaDir());
   ensureDirSync(getNewsStoriesMediaDir());
   ensureDirSync(getAvatarsMediaDir());
@@ -126,6 +145,7 @@ export const ensureMediaStorageReady = () => {
   ensureDirSync(getChatVoiceMediaDir());
   ensureDirSync(getChatVideoNotesMediaDir());
   ensureDirSync(getChatTopicsMediaDir());
+  ensureDirSync(getSntExpenseMediaDir());
 };
 
 export const isAllowedNewsMimeType = (mimeType: string) =>
@@ -136,6 +156,8 @@ export const isAllowedChatTopicPhotoMimeType = (mimeType: string) => IMAGE_MIME_
 export const isAllowedChatImageMimeType = (mimeType: string) => IMAGE_MIME_TYPES.has(mimeType);
 export const isAllowedChatVoiceMimeType = (mimeType: string) => AUDIO_MIME_TYPES.has(mimeType);
 export const isAllowedChatVideoNoteMimeType = (mimeType: string) => VIDEO_MIME_TYPES.has(mimeType);
+export const isAllowedSntExpenseAttachmentMimeType = (mimeType: string) =>
+  IMAGE_MIME_TYPES.has(mimeType) || SNT_EXPENSE_DOCUMENT_MIME_TYPES.has(mimeType);
 
 export const resolveNewsMediaType = (mimeType: string): NewsMediaType => {
   if (IMAGE_MIME_TYPES.has(mimeType)) return NewsMediaType.IMAGE;
@@ -189,6 +211,7 @@ export const buildChatImageFileUrl = (fileName: string) => `/uploads/chat/images
 export const buildChatVoiceFileUrl = (fileName: string) => `/uploads/chat/voice/${fileName}`;
 export const buildChatVideoNoteFileUrl = (fileName: string) => `/uploads/chat/video-notes/${fileName}`;
 export const buildChatTopicPhotoFileUrl = (fileName: string) => `/uploads/chat/topics/${fileName}`;
+export const buildSntExpenseAttachmentFileUrl = (fileName: string) => `/uploads/billing/expenses/${fileName}`;
 
 export const persistNewsMedia = async ({
   kind,
@@ -286,6 +309,15 @@ export const validateChatTopicPhotoFile = (file: MediaValidationFile) => {
   }
 };
 
+export const validateSntExpenseAttachmentFile = (file: MediaValidationFile) => {
+  if (!isAllowedSntExpenseAttachmentMimeType(file.mimeType)) {
+    throw badRequest("Unsupported SNT expense attachment type");
+  }
+  if (file.size > SNT_EXPENSE_ATTACHMENT_MAX_BYTES) {
+    throw badRequest("Attachment exceeds 20 MB limit");
+  }
+};
+
 export const persistChatMessageMedia = async ({
   kind,
   originalName,
@@ -338,6 +370,28 @@ export const persistChatTopicPhoto = async ({
   return {
     fileName: originalName,
     fileUrl: buildChatTopicPhotoFileUrl(fileName),
+    mimeType,
+    sizeBytes: buffer.byteLength,
+  };
+};
+
+export const persistSntExpenseAttachment = async ({
+  originalName,
+  mimeType,
+  buffer,
+}: Omit<PersistMediaParams, "kind">) => {
+  validateSntExpenseAttachmentFile({
+    mimeType,
+    size: buffer.byteLength,
+  });
+
+  const fileName = generateUploadFileName(originalName, mimeType);
+  const absolutePath = path.join(getSntExpenseMediaDir(), fileName);
+  await fsAsync.writeFile(absolutePath, buffer);
+
+  return {
+    fileName: originalName,
+    fileUrl: buildSntExpenseAttachmentFileUrl(fileName),
     mimeType,
     sizeBytes: buffer.byteLength,
   };

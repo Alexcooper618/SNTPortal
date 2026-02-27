@@ -1,9 +1,13 @@
 package ru.snt.portal.core.repository
 
 import com.google.gson.Gson
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import ru.snt.portal.core.model.ApiResult
 import ru.snt.portal.core.model.BillingBalanceMeResponse
 import ru.snt.portal.core.model.BillingSntBalanceResponse
+import ru.snt.portal.core.model.SntExpenseDto
 import ru.snt.portal.core.model.WeatherResponse
 import ru.snt.portal.core.network.PortalApi
 import ru.snt.portal.core.network.toUserMessage
@@ -57,6 +61,39 @@ class DashboardRepository @Inject constructor(
                 ApiResult.Error("Не удалось загрузить данные главной")
             }
         }
+    }
+
+    suspend fun loadSntExpenses(limit: Int = 200): ApiResult<List<SntExpenseDto>> {
+        return runCatching { api.getSntExpenses(limit).items }
+            .fold(
+                onSuccess = { ApiResult.Success(it) },
+                onFailure = {
+                    val (message, code) = it.toUserMessage(gson)
+                    ApiResult.Error(message, code)
+                },
+            )
+    }
+
+    suspend fun registerSntExpense(
+        amountCents: Int,
+        purpose: String,
+        attachment: MultipartBody.Part?,
+    ): ApiResult<SntExpenseDto> {
+        val amountPart = amountCents.toString().toRequestBody("text/plain".toMediaTypeOrNull())
+        val purposePart = purpose.trim().toRequestBody("text/plain".toMediaTypeOrNull())
+        return runCatching {
+            api.createSntExpense(
+                amountCents = amountPart,
+                purpose = purposePart,
+                attachment = attachment,
+            ).expense
+        }.fold(
+            onSuccess = { ApiResult.Success(it) },
+            onFailure = {
+                val (message, code) = it.toUserMessage(gson)
+                ApiResult.Error(message, code)
+            },
+        )
     }
 
     companion object {

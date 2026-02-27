@@ -192,6 +192,8 @@ model Tenant {
   otpCodes         OtpCode[]
   charges          Charge[]
   invoices         Invoice[]
+  sntExpenses      SntExpense[]
+  sntExpenseAttachments SntExpenseAttachment[]
   payments         Payment[]
   webhookEvents    PaymentWebhookEvent[]
   smartProviderAccounts SmartProviderAccount[]
@@ -251,6 +253,7 @@ model User {
   smartDeviceCommands SmartDeviceCommand[]
   smartWebhookEvents SmartWebhookEvent[]
   authoredCharges   Charge[]            @relation("ChargeCreator")
+  sntExpensesCreated SntExpense[]       @relation("SntExpenseCreator")
   invoices          Invoice[]
   initiatedPayments Payment[]           @relation("PaymentInitiator")
   newsPosts         NewsPost[]          @relation("NewsAuthor")
@@ -417,6 +420,38 @@ model Invoice {
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
+}
+
+model SntExpense {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  createdById Int
+  createdBy   User     @relation("SntExpenseCreator", fields: [createdById], references: [id])
+  amountCents Int
+  purpose     String
+  spentAt     DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  attachments SntExpenseAttachment[]
+
+  @@index([tenantId, spentAt])
+}
+
+model SntExpenseAttachment {
+  id        Int        @id @default(autoincrement())
+  tenantId  Int
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  expenseId Int
+  expense   SntExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  fileName  String
+  fileUrl   String
+  mimeType  String
+  sizeBytes Int
+  createdAt DateTime   @default(now())
+
+  @@index([expenseId, createdAt])
+  @@index([tenantId, createdAt])
 }
 
 model Payment {

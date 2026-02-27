@@ -4,6 +4,7 @@ import { NextFunction, Request, Response } from "express";
 import { badRequest } from "../lib/errors";
 import {
   AVATAR_MEDIA_MAX_FILES,
+  SNT_EXPENSE_ATTACHMENT_MAX_FILES,
   CHAT_MEDIA_MAX_FILES,
   CHAT_TOPIC_MEDIA_MAX_FILES,
   isAllowedChatImageMimeType,
@@ -12,6 +13,7 @@ import {
   isAllowedChatTopicPhotoMimeType,
   isAllowedChatVideoNoteMimeType,
   isAllowedChatVoiceMimeType,
+  isAllowedSntExpenseAttachmentMimeType,
   isAllowedAvatarMimeType,
   ensureMediaStorageReady,
   isAllowedNewsMimeType,
@@ -255,4 +257,10 @@ export const parseChatTopicPhoto = parseMultipartRequest({
   maxFiles: CHAT_TOPIC_MEDIA_MAX_FILES,
   acceptedFieldName: "photo",
   isAllowedMimeType: isAllowedChatTopicPhotoMimeType,
+});
+
+export const parseSntExpenseAttachment = parseMultipartRequest({
+  maxFiles: SNT_EXPENSE_ATTACHMENT_MAX_FILES,
+  acceptedFieldName: "attachment",
+  isAllowedMimeType: isAllowedSntExpenseAttachmentMimeType,
 });

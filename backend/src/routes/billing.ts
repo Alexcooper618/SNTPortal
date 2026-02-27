@@ -1,16 +1,39 @@
 import { Router } from "express";
-import { ChargeStatus, ChargeType, InvoiceStatus, LedgerKind, NotificationType, UserRole } from "@prisma/client";
+import { ChargeStatus, ChargeType, InvoiceStatus, LedgerKind, NotificationType, Prisma, UserRole } from "@prisma/client";
 import { prisma } from "../db";
 import { logAudit } from "../lib/audit";
 import { badRequest, customError, notFound } from "../lib/errors";
+import { persistSntExpenseAttachment, removeUploadedFileByUrl } from "../lib/media-storage";
 import { assertArray, assertNumber, assertString } from "../lib/validators";
 import { requireAuth, requireRole } from "../middlewares/auth";
 import { asyncHandler } from "../middlewares/async-handler";
+import { getUploadedFiles, parseSntExpenseAttachment } from "../middlewares/upload";
 
 const router = Router();
 router.use(requireAuth);
 
 type Audience = "ALL_ACTIVE_USERS_PRIMARY_PLOTS" | "USERS_PRIMARY_PLOTS" | "PLOTS";
+type SntExpenseWithRelations = Prisma.SntExpenseGetPayload<{
+  include: {
+    createdBy: {
+      select: {
+        id: true;
+        name: true;
+        role: true;
+      };
+    };
+    attachments: {
+      select: {
+        id: true;
+        fileName: true;
+        fileUrl: true;
+        mimeType: true;
+        sizeBytes: true;
+        createdAt: true;
+      };
+    };
+  };
+}>;
 
 const parseIsoDate = (raw: string, fieldName: string): Date => {
   const dt = new Date(raw);
@@ -54,13 +77,47 @@ const getSntBalanceSummary = async (tenantId: number) => {
     },
   });
 
+  const expenseAggregate = await prisma.sntExpense.aggregate({
+    where: {
+      tenantId,
+    },
+    _sum: {
+      amountCents: true,
+    },
+  });
+
   const openingCollectedCents = tenant.sntOpeningCollectedCents;
   const collectedCents = aggregate._sum.paidCents ?? 0;
+  const expensesCents = expenseAggregate._sum.amountCents ?? 0;
 
   return {
     openingCollectedCents,
     collectedCents,
-    sntBalanceCents: openingCollectedCents + collectedCents,
+    expensesCents,
+    sntBalanceCents: openingCollectedCents + collectedCents - expensesCents,
+  };
+};
+
+const toSntExpenseDto = (expense: SntExpenseWithRelations) => {
+  return {
+    id: expense.id,
+    amountCents: expense.amountCents,
+    purpose: expense.purpose,
+    spentAt: expense.spentAt.toISOString(),
+    createdAt: expense.createdAt.toISOString(),
+    createdBy: {
+      id: expense.createdBy.id,
+      name: expense.createdBy.name,
+      role: expense.createdBy.role,
+    },
+    attachments: expense.attachments.map((item) => ({
+      id: item.id,
+      fileName: item.fileName,
+      fileUrl: item.fileUrl,
+      mimeType: item.mimeType,
+      sizeBytes: item.sizeBytes,
+      createdAt: item.createdAt.toISOString(),
+    })),
   };
 };
 
@@ -1154,6 +1211,155 @@ router.get(
   asyncHandler(async (req, res) => {
     const summary = await getSntBalanceSummary(req.user!.tenantId);
     res.json(summary);
+  })
+);
+
+router.get(
+  "/balance/snt/expenses",
+  asyncHandler(async (req, res) => {
+    const parsedLimit = Number(req.query.limit ?? 100);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.max(1, Math.min(200, Math.trunc(parsedLimit)))
+      : 100;
+
+    const items = await prisma.sntExpense.findMany({
+      where: {
+        tenantId: req.user!.tenantId,
+      },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            role: true,
+          },
+        },
+        attachments: {
+          select: {
+            id: true,
+            fileName: true,
+            fileUrl: true,
+            mimeType: true,
+            sizeBytes: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+      },
+      orderBy: [
+        {
+          spentAt: "desc",
+        },
+        {
+          createdAt: "desc",
+        },
+      ],
+      take: limit,
+    });
+
+    res.json({
+      items: items.map(toSntExpenseDto),
+    });
+  })
+);
+
+router.post(
+  "/balance/snt/expenses",
+  requireRole("CHAIRMAN"),
+  parseSntExpenseAttachment,
+  asyncHandler(async (req, res) => {
+    const amountCents = assertNumber(req.body.amountCents, "amountCents");
+    const purpose = assertString(req.body.purpose, "purpose");
+
+    if (!Number.isInteger(amountCents) || amountCents <= 0) {
+      throw badRequest("amountCents must be a positive integer");
+    }
+
+    const trimmedPurpose = purpose.trim();
+    if (trimmedPurpose.length < 2 || trimmedPurpose.length > 500) {
+      throw badRequest("purpose must be 2..500 characters");
+    }
+
+    const spentAtRaw = typeof req.body.spentAt === "string" ? req.body.spentAt.trim() : "";
+    const spentAt = spentAtRaw ? parseIsoDate(spentAtRaw, "spentAt") : new Date();
+    const uploadedFile = getUploadedFiles(req)[0];
+
+    const persistedAttachment = uploadedFile
+      ? await persistSntExpenseAttachment({
+          originalName: uploadedFile.originalName,
+          mimeType: uploadedFile.mimeType,
+          buffer: uploadedFile.buffer,
+        })
+      : null;
+
+    let created: SntExpenseWithRelations;
+    try {
+      created = await prisma.$transaction(async (tx) => {
+        const next = await tx.sntExpense.create({
+          data: {
+            tenantId: req.user!.tenantId,
+            createdById: req.user!.userId,
+            amountCents,
+            purpose: trimmedPurpose,
+            spentAt,
+            attachments: persistedAttachment
+              ? {
+                  create: {
+                    tenantId: req.user!.tenantId,
+                    fileName: persistedAttachment.fileName,
+                    fileUrl: persistedAttachment.fileUrl,
+                    mimeType: persistedAttachment.mimeType,
+                    sizeBytes: persistedAttachment.sizeBytes,
+                  },
+                }
+              : undefined,
+          },
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                name: true,
+                role: true,
+              },
+            },
+            attachments: {
+              select: {
+                id: true,
+                fileName: true,
+                fileUrl: true,
+                mimeType: true,
+                sizeBytes: true,
+                createdAt: true,
+              },
+            },
+          },
+        });
+
+        await logAudit({
+          tenantId: req.user!.tenantId,
+          actorId: req.user!.userId,
+          action: "SNT_EXPENSE_CREATED",
+          entityType: "SntExpense",
+          entityId: String(next.id),
+          requestId: req.requestId,
+          metadata: {
+            amountCents,
+            hasAttachment: Boolean(persistedAttachment),
+          },
+        });
+
+        return next;
+      });
+    } catch (error) {
+      if (persistedAttachment?.fileUrl) {
+        await removeUploadedFileByUrl(persistedAttachment.fileUrl);
+      }
+      throw error;
+    }
+
+    res.status(201).json({ expense: toSntExpenseDto(created) });
   })
 );
 

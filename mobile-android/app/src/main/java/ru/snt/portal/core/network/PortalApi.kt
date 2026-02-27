@@ -39,6 +39,8 @@ import ru.snt.portal.core.model.PushTokenDeleteRequest
 import ru.snt.portal.core.model.PushTokenDeleteResponse
 import ru.snt.portal.core.model.PushTokenRequest
 import ru.snt.portal.core.model.RefreshRequest
+import ru.snt.portal.core.model.SntExpenseCreateResponse
+import ru.snt.portal.core.model.SntExpensesResponse
 import ru.snt.portal.core.model.TenantsResponse
 import ru.snt.portal.core.model.UserEnvelopeResponse
 import ru.snt.portal.core.model.WeatherResponse
@@ -71,6 +73,19 @@ interface PortalApi {
 
     @GET("billing/balance/snt")
     suspend fun getSntBillingBalance(): BillingSntBalanceResponse
+
+    @GET("billing/balance/snt/expenses")
+    suspend fun getSntExpenses(
+        @Query("limit") limit: Int = 100,
+    ): SntExpensesResponse
+
+    @Multipart
+    @POST("billing/balance/snt/expenses")
+    suspend fun createSntExpense(
+        @Part("amountCents") amountCents: RequestBody,
+        @Part("purpose") purpose: RequestBody,
+        @Part attachment: MultipartBody.Part? = null,
+    ): SntExpenseCreateResponse
 
     @GET("chat/rooms")
     suspend fun getChatRooms(): ChatRoomsResponse

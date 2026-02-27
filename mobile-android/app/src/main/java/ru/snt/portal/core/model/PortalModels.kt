@@ -81,7 +81,35 @@ data class BillingBalanceMeResponse(
 data class BillingSntBalanceResponse(
     val openingCollectedCents: Int = 0,
     val collectedCents: Int = 0,
+    val expensesCents: Int = 0,
     val sntBalanceCents: Int = 0,
+)
+
+data class SntExpenseAttachmentDto(
+    val id: Int,
+    val fileName: String,
+    val fileUrl: String,
+    val mimeType: String,
+    val sizeBytes: Int,
+    val createdAt: String,
+)
+
+data class SntExpenseDto(
+    val id: Int,
+    val amountCents: Int,
+    val purpose: String,
+    val spentAt: String,
+    val createdAt: String,
+    val createdBy: ChatMessageAuthor,
+    val attachments: List<SntExpenseAttachmentDto> = emptyList(),
+)
+
+data class SntExpensesResponse(
+    val items: List<SntExpenseDto> = emptyList(),
+)
+
+data class SntExpenseCreateResponse(
+    val expense: SntExpenseDto,
 )
 
 data class ChatUnreadSummary(

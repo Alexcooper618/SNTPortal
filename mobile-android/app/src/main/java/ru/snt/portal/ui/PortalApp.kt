@@ -131,6 +131,7 @@ import java.text.NumberFormat
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
+import kotlin.math.roundToInt
 import ru.snt.portal.core.model.NewsAttachment
 import ru.snt.portal.core.model.NewsPost
 import ru.snt.portal.core.model.NewsStoryGroup
@@ -364,6 +365,7 @@ private fun PortalScaffold(
 ) {
     var tab by rememberSaveable { mutableStateOf(NativeTab.Dashboard) }
     var webPath by rememberSaveable { mutableStateOf<String?>(null) }
+    var showSntBalanceDetails by rememberSaveable { mutableStateOf(false) }
     var pendingChatDeepLinkRoomId by rememberSaveable(launchRequestId) {
         mutableStateOf(launchChatRoomId)
     }
@@ -444,6 +446,7 @@ private fun PortalScaffold(
                     viewModel = dashboardViewModel,
                     userName = session.user.name,
                     onOpenChat = { tab = NativeTab.Chat },
+                    onOpenSntBalanceDetails = { showSntBalanceDetails = true },
                 )
 
                 NativeTab.News -> NewsScreen(viewModel = newsViewModel, apiBaseUrl = apiBaseUrl)
@@ -467,6 +470,14 @@ private fun PortalScaffold(
             }
         }
     }
+
+    if (showSntBalanceDetails) {
+        SntBalanceDetailsDialog(
+            isChairman = session.user.role == "CHAIRMAN",
+            apiBaseUrl = apiBaseUrl,
+            onDismiss = { showSntBalanceDetails = false },
+        )
+    }
 }
 
 @Composable
@@ -474,6 +485,7 @@ private fun DashboardScreen(
     viewModel: DashboardViewModel,
     userName: String,
     onOpenChat: () -> Unit,
+    onOpenSntBalanceDetails: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val weather = state.weather
@@ -561,7 +573,9 @@ private fun DashboardScreen(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 ElevatedCard(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onOpenSntBalanceDetails),
                     colors = CardDefaults.elevatedCardColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -575,7 +589,7 @@ private fun DashboardScreen(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
-                        Text("Общая копилка СНТ", style = MaterialTheme.typography.bodySmall)
+                        Text("Нажмите для расшифровки расходов", style = MaterialTheme.typography.bodySmall)
                     }
                 }
 
@@ -603,6 +617,277 @@ private fun DashboardScreen(
         item {
             TextButton(onClick = { viewModel.refresh(force = true) }) {
                 Text("Обновить данные")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SntBalanceDetailsDialog(
+    isChairman: Boolean,
+    apiBaseUrl: String,
+    onDismiss: () -> Unit,
+    viewModel: SntBalanceViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var amountInput by rememberSaveable { mutableStateOf("") }
+    var purposeInput by rememberSaveable { mutableStateOf("") }
+    var formError by rememberSaveable { mutableStateOf<String?>(null) }
+    var pickedAttachment by remember { mutableStateOf<PickedMedia?>(null) }
+
+    val attachmentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val picked = context.resolvePickedAttachment(uri)
+        if (picked == null) {
+            formError = "Поддерживаются фото, PDF, DOC, XLS и TXT"
+            return@rememberLauncherForActivityResult
+        }
+        pickedAttachment = picked
+        formError = null
+    }
+
+    LaunchedEffect(state.notice) {
+        if (!state.notice.isNullOrBlank()) {
+            amountInput = ""
+            purposeInput = ""
+            pickedAttachment = null
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                TopAppBar(
+                    title = { Text("Баланс СНТ") },
+                    navigationIcon = {
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Назад")
+                        }
+                    },
+                    actions = {
+                        TextButton(onClick = { viewModel.refresh(force = true) }) {
+                            Text("Обновить")
+                        }
+                    },
+                )
+
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            ElevatedCard(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text("Баланс СНТ", style = MaterialTheme.typography.labelLarge)
+                                    Text(
+                                        formatRub(state.summary.sntBalanceCents),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                            ElevatedCard(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text("Расходы", style = MaterialTheme.typography.labelLarge)
+                                    Text(
+                                        formatRub(state.summary.expensesCents),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (!state.error.isNullOrBlank()) {
+                        item {
+                            Text(
+                                state.error.orEmpty(),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                    if (!state.notice.isNullOrBlank()) {
+                        item {
+                            Text(
+                                state.notice.orEmpty(),
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                    if (!formError.isNullOrBlank()) {
+                        item {
+                            Text(
+                                formError.orEmpty(),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+
+                    if (isChairman) {
+                        item {
+                            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    Text("Зарегистрировать расход", style = MaterialTheme.typography.titleMedium)
+                                    OutlinedTextField(
+                                        value = amountInput,
+                                        onValueChange = { amountInput = it },
+                                        label = { Text("Сумма (₽)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                    )
+                                    OutlinedTextField(
+                                        value = purposeInput,
+                                        onValueChange = { purposeInput = it },
+                                        label = { Text("Назначение платежа") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true,
+                                    )
+                                    OutlinedButton(
+                                        onClick = {
+                                            attachmentPicker.launch(
+                                                arrayOf(
+                                                    "image/*",
+                                                    "application/pdf",
+                                                    "application/msword",
+                                                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                                    "application/vnd.ms-excel",
+                                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                                    "text/plain",
+                                                ),
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Icon(Icons.Outlined.AttachFile, contentDescription = null)
+                                        Spacer(modifier = Modifier.size(6.dp))
+                                        Text(pickedAttachment?.fileName ?: "Прикрепить файл или фото")
+                                    }
+                                    Button(
+                                        onClick = {
+                                            val amountCents = parsePositiveRubToCents(amountInput)
+                                            if (amountCents == null) {
+                                                formError = "Введите корректную сумму больше 0"
+                                                return@Button
+                                            }
+                                            val purpose = purposeInput.trim()
+                                            if (purpose.length < 2) {
+                                                formError = "Укажите назначение платежа"
+                                                return@Button
+                                            }
+                                            formError = null
+                                            coroutineScope.launch {
+                                                val part = pickedAttachment?.let {
+                                                    buildMultipartPart(context, it, "attachment")
+                                                }
+                                                viewModel.registerExpense(
+                                                    amountCents = amountCents,
+                                                    purpose = purpose,
+                                                    attachment = part,
+                                                )
+                                            }
+                                        },
+                                        enabled = !state.saving,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text(if (state.saving) "Сохраняем..." else "Зарегистрировать расход")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Text("Расходы", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    if (state.loading && state.expenses.isEmpty()) {
+                        item {
+                            Text("Загружаем расходы...", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    } else if (state.expenses.isEmpty()) {
+                        item {
+                            Text("Расходов пока нет.", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    } else {
+                        items(items = state.expenses, key = { it.id }) { expense ->
+                            ElevatedCard(shape = RoundedCornerShape(16.dp)) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Text(
+                                            text = "-${formatRub(expense.amountCents)}",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Text(
+                                            text = formatDateTimeLabel(expense.spentAt),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Text(expense.purpose, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "Добавил: ${expense.createdBy.name}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    if (expense.attachments.isNotEmpty()) {
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            items(expense.attachments, key = { it.id }) { attachment ->
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        openUrlInBrowser(
+                                                            context,
+                                                            resolveMediaUrl(apiBaseUrl, attachment.fileUrl),
+                                                        )
+                                                    },
+                                                ) {
+                                                    Text(
+                                                        text = attachment.fileName,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -655,6 +940,23 @@ private fun formatRub(cents: Int): String {
         minimumFractionDigits = 0
     }
     return "${formatter.format(cents / 100.0)} ₽"
+}
+
+private fun parsePositiveRubToCents(raw: String): Int? {
+    val normalized = raw.trim().replace(" ", "").replace(",", ".")
+    val amount = normalized.toDoubleOrNull() ?: return null
+    if (amount <= 0.0) return null
+    return (amount * 100.0).roundToInt()
+}
+
+private fun formatDateTimeLabel(value: String): String {
+    val parsed = runCatching { java.time.Instant.parse(value) }.getOrNull()
+    if (parsed != null) {
+        return java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")
+            .withZone(java.time.ZoneId.systemDefault())
+            .format(parsed)
+    }
+    return value
 }
 
 private enum class ChatRoomFilter(val label: String) {
@@ -2204,6 +2506,23 @@ private fun Context.resolvePickedMedia(uri: Uri): PickedMedia? {
     if (!mime.startsWith("image/") && !mime.startsWith("video/")) {
         return null
     }
+    return PickedMedia(uri = uri, fileName = fileName, mimeType = mime)
+}
+
+private fun Context.resolvePickedAttachment(uri: Uri): PickedMedia? {
+    val mime = contentResolver.getType(uri) ?: guessMimeType(uri)
+    val fileName = queryDisplayName(uri) ?: "attachment_${System.currentTimeMillis()}"
+    val isAllowedDocument = mime == "application/pdf" ||
+        mime == "application/msword" ||
+        mime == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        mime == "application/vnd.ms-excel" ||
+        mime == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        mime == "text/plain"
+
+    if (!mime.startsWith("image/") && !isAllowedDocument) {
+        return null
+    }
+
     return PickedMedia(uri = uri, fileName = fileName, mimeType = mime)
 }
 
