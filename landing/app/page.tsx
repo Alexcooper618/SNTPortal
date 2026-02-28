@@ -17,6 +17,13 @@ const navItems = [
   { href: "#faq", label: "FAQ" },
 ];
 
+const signalItems = [
+  "Коммуникации в реальном времени",
+  "Цифровые голосования без бумажной нагрузки",
+  "Единый контур жителей и председателя",
+  "Контроль обращений и платежей",
+];
+
 const audience = [
   {
     title: "Председатель",
@@ -183,6 +190,16 @@ export default function LandingPage() {
           Войти
         </a>
       </header>
+      <div className="signal-strip reveal" aria-hidden="true">
+        <div className="signal-track">
+          {signalItems.map((item) => (
+            <span key={`signal-a-${item}`}>{item}</span>
+          ))}
+          {signalItems.map((item) => (
+            <span key={`signal-b-${item}`}>{item}</span>
+          ))}
+        </div>
+      </div>
 
       <section className="hero reveal" id="top">
         <div className="hero-art-wrap" aria-hidden="true">
@@ -197,8 +214,15 @@ export default function LandingPage() {
         </div>
         <div className="hero-copy">
           <p className="eyebrow">Цифровая платформа для СНТ</p>
+          <div className="hero-signals" aria-hidden="true">
+            <span>оперативный контур</span>
+            <span>цифровой документооборот</span>
+            <span>resident flow</span>
+          </div>
           <h1>
-            Умный контур управления
+            Умный контур
+            <br />
+            <span>управления</span>
             <br />
             для жителей и председателя
           </h1>
@@ -240,8 +264,8 @@ export default function LandingPage() {
       </section>
 
       <section className="metric-grid reveal" aria-label="Ключевые метрики">
-        {metrics.map((item) => (
-          <article key={item.title} className="metric-card">
+        {metrics.map((item, index) => (
+          <article key={item.title} className={`metric-card metric-card-${index + 1}`}>
             <p className="metric-value">{item.value}</p>
             <p className="metric-title">{item.title}</p>
             <span>{item.note}</span>
@@ -251,6 +275,7 @@ export default function LandingPage() {
 
       <section className="section section-audience reveal" id="audience">
         <div className="section-head">
+          <p className="section-code">01 / audience</p>
           <h2>Для кого</h2>
           <p>Разные роли, единые процессы и прозрачная операционная модель внутри СНТ.</p>
         </div>
@@ -265,7 +290,7 @@ export default function LandingPage() {
         </div>
         <div className="card-grid two">
           {audience.map((item) => (
-            <article key={item.title} className="card">
+            <article key={item.title} className="card audience-card">
               <h3>{item.title}</h3>
               <p>{item.description}</p>
             </article>
@@ -275,6 +300,7 @@ export default function LandingPage() {
 
       <section className="section section-features reveal" id="features">
         <div className="section-head">
+          <p className="section-code">02 / capability grid</p>
           <h2>Ключевые функции</h2>
           <p>Все, что нужно для ежедневного управления СНТ, собрано в одном продукте.</p>
         </div>
@@ -288,8 +314,9 @@ export default function LandingPage() {
           />
         </div>
         <div className="card-grid three">
-          {features.map((feature) => (
+          {features.map((feature, index) => (
             <article key={feature.title} className="card feature-card">
+              <span className="card-index">{String(index + 1).padStart(2, "0")}</span>
               <h3>{feature.title}</h3>
               <p>{feature.description}</p>
             </article>
@@ -299,6 +326,7 @@ export default function LandingPage() {
 
       <section className="section section-benefits reveal" id="benefits">
         <div className="section-head">
+          <p className="section-code">03 / impact</p>
           <h2>Почему это выгодно</h2>
           <p>Платформа снижает ручную нагрузку и делает решения внутри СНТ прозрачными для всех сторон.</p>
         </div>
@@ -313,7 +341,7 @@ export default function LandingPage() {
         </div>
         <div className="card-grid three">
           {benefits.map((item) => (
-            <article key={item.title} className="card">
+            <article key={item.title} className="card benefit-card">
               <h3>{item.title}</h3>
               <p>{item.description}</p>
             </article>
@@ -323,6 +351,7 @@ export default function LandingPage() {
 
       <section className="section reveal" id="faq">
         <div className="section-head">
+          <p className="section-code">04 / faq</p>
           <h2>FAQ</h2>
         </div>
         <div className="faq-list">
@@ -336,6 +365,7 @@ export default function LandingPage() {
       </section>
 
       <section className="section contact reveal" id="contacts">
+        <p className="section-code">05 / next step</p>
         <h2>Запросить демо</h2>
         <p>Покажем продукт на ваших сценариях и дадим план запуска для конкретного СНТ.</p>
         <a href={`mailto:${demoEmail}`} className="contact-link">
